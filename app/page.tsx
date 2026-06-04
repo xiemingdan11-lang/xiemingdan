@@ -75,6 +75,11 @@ type DailyMetric = {
   revenue: number;
 };
 
+type SopRecord = {
+  done: boolean;
+  output: string;
+};
+
 const initialKeywords: Keyword[] = [
   {
     id: 1,
@@ -193,22 +198,27 @@ const productSignals = [
 ];
 
 const sop = [
-  ["1 大课介绍", "理解项目结构，按找词、选品、上架、检测、发货推进"],
-  ["2 店铺开通", "先开通基础店铺，闲管家后面再看"],
-  ["3 怎么理解虚拟类目", "理解虚拟产品和交付形式"],
-  ["4 淘宝店铺基础开通", "完成淘宝基础后台设置"],
-  ["5 选品说明和准备", "选品方法包括淘宝选品、闲鱼选品、小红书反向选品、找热点"],
-  ["6 选品基础-找词", "整理自己的虚拟词库：功能词、店铺裂变词、主题参谋词"],
-  ["7 筛出优质词等于优质品", "看付款人数、评价、价格"],
-  ["8 小红书反向选品", "看主题图、价格、评论、是否能做出产品"],
-  ["9 找热点", "用热点找可上架的虚拟资料方向"],
-  ["10 红薯速刷轻度标签", "用小红书刷出轻度标签"],
-  ["11 AI主图和AI标题", "用 AI 生成标题和主图思路"],
-  ["12 淘宝快速上架", "在千牛/淘宝后台快速上架"],
-  ["13 闲鱼上架", "同步闲鱼上架"],
-  ["14 违规检测", "淘宝商品检测提交、日常维护、清理商品"],
-  ["15 货源整理和发货问题", "找上家货源，整理资源，处理手动发货"]
-];
+  { title: "1 大课介绍", body: "理解项目结构，按找词、选品、上架、检测、发货推进", output: "写下项目闭环和今天主线", target: "overview" },
+  { title: "2 店铺开通", body: "先开通基础店铺，闲管家后面再看", output: "记录店铺账号和开通状态", target: "listing" },
+  { title: "3 怎么理解虚拟类目", body: "理解虚拟产品和交付形式", output: "明确交付物：资料包/模板/教程/图片", target: "products" },
+  { title: "4 淘宝店铺基础开通", body: "完成淘宝基础后台设置", output: "确认保证金、类目、发货方式", target: "listing" },
+  { title: "5 选品说明和准备", body: "选品方法包括淘宝选品、闲鱼选品、小红书反向选品、找热点", output: "整理 3 个备选方向", target: "keywords" },
+  { title: "6 选品基础-找词", body: "整理自己的虚拟词库：功能词、店铺裂变词、主题参谋词", output: "新增 20 个关键词", target: "keywords" },
+  { title: "7 筛出优质词等于优质品", body: "看付款人数、评价、价格", output: "保留 10 个待测词", target: "screen" },
+  { title: "8 小红书反向选品", body: "看主题图、价格、评论、是否能做出产品", output: "记录 3 个可复制选题", target: "screen" },
+  { title: "9 找热点", body: "用热点找可上架的虚拟资料方向", output: "写下 3 个热点资料方向", target: "keywords" },
+  { title: "10 红薯速刷轻度标签", body: "用小红书刷出轻度标签", output: "记录账号标签和推荐内容", target: "screen" },
+  { title: "11 AI主图和AI标题", body: "用 AI 生成标题和主图思路", output: "生成 3 个标题和 1 张主图方案", target: "products" },
+  { title: "12 淘宝快速上架", body: "在千牛/淘宝后台快速上架", output: "完成 1 个淘宝商品上架", target: "listing" },
+  { title: "13 闲鱼上架", body: "同步闲鱼上架", output: "完成 1 个闲鱼商品上架", target: "listing" },
+  { title: "14 违规检测", body: "淘宝商品检测提交、日常维护、清理商品", output: "提交检测并记录问题", target: "listing" },
+  { title: "15 货源整理和发货问题", body: "找上家货源，整理资源，处理手动发货", output: "整理发货链接和售后话术", target: "products" }
+] as const;
+
+const initialSopRecords = sop.reduce<Record<number, SopRecord>>((records, _, index) => {
+  records[index] = { done: index < 5, output: "" };
+  return records;
+}, {});
 
 const nav = [
   ["overview", "总览", Home],
@@ -267,10 +277,12 @@ export default function HomePage() {
   const [products] = useLocalState("vp_products", initialProducts);
   const [tasks, setTasks] = useLocalState("vp_tasks", initialTasks);
   const [listings, setListings] = useLocalState("vp_listings", initialListings);
+  const [sopRecords, setSopRecords] = useLocalState("vp_sop_records", initialSopRecords);
   const [newWord, setNewWord] = useState("");
 
   const dashboard = useMemo(() => {
     const doneTasks = tasks.filter((item) => item.done).length;
+    const doneSop = Object.values(sopRecords).filter((item) => item.done).length;
     const keptKeywords = keywords.filter((item) => item.keep).length;
     const listedCount = listings.filter((item) => item.taobao || item.xianyu).length;
     const checkedCount = listings.filter((item) => item.checked).length;
@@ -289,10 +301,12 @@ export default function HomePage() {
       exposureGrowth,
       revenue,
       conversion,
+      doneSop,
       taskRate: tasks.length ? Math.round((doneTasks / tasks.length) * 100) : 0,
+      sopRate: Math.round((doneSop / sop.length) * 100),
       listingRate: products.length ? Math.round((listedCount / products.length) * 100) : 0
     };
-  }, [keywords, products.length, listings, tasks]);
+  }, [keywords, products.length, listings, tasks, sopRecords]);
 
   const stats = useMemo<[string, string | number, string, LucideIcon, "blue" | "green" | "amber" | "gray"][]>(() => [
     ["今日曝光", dashboard.latest.exposure, `${dashboard.exposureGrowth >= 0 ? "+" : ""}${dashboard.exposureGrowth}% 较昨日`, Activity, "blue"],
@@ -401,7 +415,7 @@ export default function HomePage() {
                 <MetricCard label="关键词池" value={keywords.length} hint={`${dashboard.keptKeywords} 个已保留`} icon={Database} tone="blue" />
                 <MetricCard label="商品数" value={products.length} hint={`${dashboard.listingRate}% 已进入上架`} icon={Store} tone="green" />
                 <MetricCard label="检测提交" value={dashboard.checkedCount} hint="降低违规风险" icon={ShieldAlert} tone="amber" />
-                <MetricCard label="SOP进度" value="5/15" hint="先跑完基础闭环" icon={Rocket} tone="gray" />
+                <MetricCard label="SOP进度" value={`${dashboard.doneSop}/15`} hint={`${dashboard.sopRate}% 已完成`} icon={Rocket} tone="gray" />
               </div>
 
               <div className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
@@ -446,18 +460,66 @@ export default function HomePage() {
           )}
 
           {tab === "sop" && (
-            <Panel title="15 节视频精华/SOP" icon={BookOpen}>
-              <div className="grid gap-2">
-                {sop.map(([title, body], index) => (
-                  <div key={title} className="grid grid-cols-[42px_220px_1fr_96px] items-center gap-3 rounded-md border border-line px-3 py-2 text-sm">
-                    <Badge>{index + 1}</Badge>
-                    <strong>{title}</strong>
-                    <span className="text-slate-600">{body}</span>
-                    <Badge tone={index < 5 ? "green" : "amber"}>{index < 5 ? "先做" : "待做"}</Badge>
+            <div className="grid gap-4">
+              <section className="rounded-lg border border-line bg-white p-4 shadow-panel">
+                <div className="grid gap-4 lg:grid-cols-[0.72fr_1.28fr]">
+                  <div>
+                    <div className="flex items-center gap-2 text-sm font-semibold">
+                      <Rocket className="h-4 w-4 text-blue-600" />
+                      SOP 执行进度
+                    </div>
+                    <div className="mt-4 flex items-center gap-4">
+                      <ProgressRingLight value={dashboard.sopRate} />
+                      <div className="text-sm text-slate-600">
+                        <div><strong className="text-ink">{dashboard.doneSop}</strong> / 15 节已完成</div>
+                        <div className="mt-1">下一步建议：从找词、筛词、上架跑一个完整闭环。</div>
+                      </div>
+                    </div>
                   </div>
-                ))}
-              </div>
-            </Panel>
+                  <div className="grid grid-cols-5 gap-2 text-sm">
+                    {[
+                      ["找词", keywords.length, "关键词库"],
+                      ["筛词", dashboard.keptKeywords, "保留词"],
+                      ["商品", products.length, "商品库"],
+                      ["上架", dashboard.listedCount, "已上架"],
+                      ["检测", dashboard.checkedCount, "已提交"]
+                    ].map(([label, value, hint]) => (
+                      <div key={label} className="rounded-md border border-line bg-slate-50 p-3">
+                        <div className="text-xs text-slate-500">{hint}</div>
+                        <div className="mt-2 text-2xl font-semibold">{value}</div>
+                        <div className="mt-1 text-xs font-medium">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
+
+              <Panel title="15 节视频精华/SOP" icon={BookOpen} action={<Badge tone="blue">可执行</Badge>}>
+                <div className="grid gap-3">
+                  {sop.map((step, index) => (
+                    <SopStepRow
+                      key={step.title}
+                      index={index}
+                      step={step}
+                      record={sopRecords[index] ?? { done: false, output: "" }}
+                      onToggle={() =>
+                        setSopRecords({
+                          ...sopRecords,
+                          [index]: { ...(sopRecords[index] ?? { output: "" }), done: !(sopRecords[index]?.done ?? false) }
+                        })
+                      }
+                      onOutputChange={(output) =>
+                        setSopRecords({
+                          ...sopRecords,
+                          [index]: { ...(sopRecords[index] ?? { done: false }), output }
+                        })
+                      }
+                      onOpen={() => setTab(step.target)}
+                    />
+                  ))}
+                </div>
+              </Panel>
+            </div>
           )}
 
           {tab === "keywords" && (
@@ -729,6 +791,75 @@ function ProductSignalBoard() {
           <Badge tone={index === 0 ? "green" : "gray"}>{item.status}</Badge>
         </div>
       ))}
+    </div>
+  );
+}
+
+function ProgressRingLight({ value }: { value: number }) {
+  const degrees = Math.max(0, Math.min(100, value)) * 3.6;
+  return (
+    <div
+      className="grid h-24 w-24 shrink-0 place-items-center rounded-full"
+      style={{ background: `conic-gradient(#2563eb ${degrees}deg, #e2e8f0 0deg)` }}
+    >
+      <div className="grid h-16 w-16 place-items-center rounded-full bg-white text-center">
+        <div>
+          <div className="text-xl font-semibold">{value}%</div>
+          <div className="text-[10px] text-slate-500">SOP</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SopStepRow({
+  index,
+  step,
+  record,
+  onToggle,
+  onOutputChange,
+  onOpen
+}: {
+  index: number;
+  step: (typeof sop)[number];
+  record: SopRecord;
+  onToggle: () => void;
+  onOutputChange: (value: string) => void;
+  onOpen: () => void;
+}) {
+  return (
+    <div className={`rounded-lg border p-3 text-sm ${record.done ? "border-emerald-200 bg-emerald-50/40" : "border-line bg-white"}`}>
+      <div className="grid grid-cols-[44px_1fr_170px_96px] items-center gap-3">
+        <button
+          onClick={onToggle}
+          className={`grid h-9 w-9 place-items-center rounded-md border ${
+            record.done ? "border-emerald-300 bg-emerald-100 text-emerald-700" : "border-line bg-slate-50 text-slate-500"
+          }`}
+          title="切换完成状态"
+        >
+          {record.done ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+        </button>
+        <div>
+          <div className="flex items-center gap-2">
+            <strong>{step.title}</strong>
+            <Badge tone={record.done ? "green" : index < 5 ? "blue" : "amber"}>{record.done ? "已完成" : index < 5 ? "基础" : "待执行"}</Badge>
+          </div>
+          <div className="mt-1 text-slate-600">{step.body}</div>
+        </div>
+        <div className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          <div className="font-medium text-ink">本节产出</div>
+          <div className="mt-1">{step.output}</div>
+        </div>
+        <button onClick={onOpen} className="rounded-md border border-line bg-white px-3 py-2 text-sm hover:bg-slate-50">
+          去执行
+        </button>
+      </div>
+      <textarea
+        value={record.output}
+        onChange={(event) => onOutputChange(event.target.value)}
+        placeholder="记录你这一步实际做出来的东西，比如：新增了哪些词、筛掉了哪些词、上架了哪个商品..."
+        className="mt-3 min-h-16 w-full resize-y rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+      />
     </div>
   );
 }
