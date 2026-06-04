@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Activity,
   BarChart3,
   BookOpen,
   CheckCircle2,
@@ -9,11 +10,17 @@ import {
   FileText,
   Home,
   Layers,
+  LineChart,
   Plus,
+  Rocket,
   Search,
   Settings2,
+  ShieldAlert,
+  Sparkles,
   Store,
-  Tags
+  Tags,
+  TrendingUp,
+  WalletCards
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -57,6 +64,15 @@ type Listing = {
   checked: boolean;
   maintained: boolean;
   cleaned: boolean;
+};
+
+type DailyMetric = {
+  date: string;
+  exposure: number;
+  visitors: number;
+  consults: number;
+  orders: number;
+  revenue: number;
 };
 
 const initialKeywords: Keyword[] = [
@@ -154,6 +170,28 @@ const initialListings: Listing[] = [
   }
 ];
 
+const dailyMetrics: DailyMetric[] = [
+  { date: "5/29", exposure: 58, visitors: 8, consults: 1, orders: 0, revenue: 0 },
+  { date: "5/30", exposure: 84, visitors: 12, consults: 2, orders: 0, revenue: 0 },
+  { date: "5/31", exposure: 126, visitors: 21, consults: 3, orders: 1, revenue: 18.8 },
+  { date: "6/1", exposure: 152, visitors: 28, consults: 4, orders: 1, revenue: 18.8 },
+  { date: "6/2", exposure: 181, visitors: 33, consults: 5, orders: 2, revenue: 37.6 },
+  { date: "6/3", exposure: 216, visitors: 41, consults: 7, orders: 2, revenue: 56.4 },
+  { date: "6/4", exposure: 248, visitors: 48, consults: 8, orders: 3, revenue: 75.2 }
+];
+
+const channelMetrics = [
+  { name: "淘宝", exposure: 426, consults: 9, orders: 3, color: "bg-blue-500" },
+  { name: "闲鱼", exposure: 391, consults: 14, orders: 4, color: "bg-emerald-500" },
+  { name: "小红书", exposure: 248, consults: 7, orders: 2, color: "bg-rose-500" }
+];
+
+const productSignals = [
+  { name: "PPT教学能力大赛模板包", score: 86, revenue: 169.2, trend: "+24%", status: "重点推" },
+  { name: "美甲图片参考素材包", score: 72, revenue: 89.1, trend: "+11%", status: "继续测" },
+  { name: "7天起号全流程资料", score: 48, revenue: 0, trend: "-6%", status: "先观察" }
+];
+
 const sop = [
   ["1 大课介绍", "理解项目结构，按找词、选品、上架、检测、发货推进"],
   ["2 店铺开通", "先开通基础店铺，闲管家后面再看"],
@@ -208,12 +246,15 @@ function Badge({ children, tone = "gray" }: { children: React.ReactNode; tone?: 
   return <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs ${tones[tone]}`}>{children}</span>;
 }
 
-function Panel({ title, icon: Icon, children }: { title: string; icon: typeof Home; children: React.ReactNode }) {
+function Panel({ title, icon: Icon, children, action }: { title: string; icon: typeof Home; children: React.ReactNode; action?: React.ReactNode }) {
   return (
     <section className="rounded-lg border border-line bg-white shadow-panel">
-      <div className="flex items-center gap-2 border-b border-line px-4 py-3">
-        <Icon className="h-4 w-4 text-slate-500" />
-        <h2 className="text-sm font-semibold">{title}</h2>
+      <div className="flex items-center justify-between border-b border-line px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Icon className="h-4 w-4 text-slate-500" />
+          <h2 className="text-sm font-semibold">{title}</h2>
+        </div>
+        {action}
       </div>
       <div className="p-4">{children}</div>
     </section>
@@ -228,16 +269,37 @@ export default function HomePage() {
   const [listings, setListings] = useLocalState("vp_listings", initialListings);
   const [newWord, setNewWord] = useState("");
 
-  const stats = useMemo<[string, string | number, LucideIcon][]>(() => {
+  const dashboard = useMemo(() => {
     const doneTasks = tasks.filter((item) => item.done).length;
-    return [
-      ["关键词", keywords.length, Database],
-      ["保留词", keywords.filter((item) => item.keep).length, Tags],
-      ["商品", products.length, Store],
-      ["已上架", listings.filter((item) => item.taobao || item.xianyu).length, Layers],
-      ["今日任务", `${doneTasks}/${tasks.length}`, CheckCircle2]
-    ];
+    const keptKeywords = keywords.filter((item) => item.keep).length;
+    const listedCount = listings.filter((item) => item.taobao || item.xianyu).length;
+    const checkedCount = listings.filter((item) => item.checked).length;
+    const latest = dailyMetrics[dailyMetrics.length - 1];
+    const previous = dailyMetrics[dailyMetrics.length - 2];
+    const exposureGrowth = Math.round(((latest.exposure - previous.exposure) / previous.exposure) * 100);
+    const revenue = dailyMetrics.reduce((sum, item) => sum + item.revenue, 0);
+    const conversion = latest.visitors ? Math.round((latest.orders / latest.visitors) * 1000) / 10 : 0;
+
+    return {
+      doneTasks,
+      keptKeywords,
+      listedCount,
+      checkedCount,
+      latest,
+      exposureGrowth,
+      revenue,
+      conversion,
+      taskRate: tasks.length ? Math.round((doneTasks / tasks.length) * 100) : 0,
+      listingRate: products.length ? Math.round((listedCount / products.length) * 100) : 0
+    };
   }, [keywords, products.length, listings, tasks]);
+
+  const stats = useMemo<[string, string | number, string, LucideIcon, "blue" | "green" | "amber" | "gray"][]>(() => [
+    ["今日曝光", dashboard.latest.exposure, `${dashboard.exposureGrowth >= 0 ? "+" : ""}${dashboard.exposureGrowth}% 较昨日`, Activity, "blue"],
+    ["访问转化", `${dashboard.conversion}%`, "访客到成交", TrendingUp, "green"],
+    ["预估成交额", `¥${dashboard.revenue.toFixed(1)}`, "7 天累计", WalletCards, "amber"],
+    ["任务完成", `${dashboard.doneTasks}/${tasks.length}`, `${dashboard.taskRate}% 进度`, CheckCircle2, "gray"]
+  ], [dashboard, tasks.length]);
 
   const addKeyword = () => {
     if (!newWord.trim()) return;
@@ -298,25 +360,84 @@ export default function HomePage() {
         <div className="space-y-5 p-6">
           {tab === "overview" && (
             <>
-              <div className="grid grid-cols-5 gap-3">
-                {stats.map(([label, value, Icon]) => (
-                  <div key={String(label)} className="rounded-lg border border-line bg-white p-4 shadow-panel">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-500">{label}</span>
-                      <Icon className="h-4 w-4 text-slate-400" />
+              <section className="rounded-lg border border-line bg-ink p-5 text-white shadow-panel">
+                <div className="grid gap-5 lg:grid-cols-[1.3fr_0.7fr]">
+                  <div>
+                    <div className="flex items-center gap-2 text-xs text-slate-300">
+                      <Sparkles className="h-4 w-4 text-amber-300" />
+                      今日运营指挥中心
                     </div>
-                    <div className="mt-2 text-2xl font-semibold">{String(value)}</div>
+                    <h2 className="mt-3 text-2xl font-semibold">虚拟项目数据看板</h2>
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+                      把找词、筛词、上架、检测和成交数据放在一个页面，先看趋势，再决定今天要推哪个品、砍哪个词。
+                    </p>
+                    <div className="mt-5 grid grid-cols-4 gap-3">
+                      {stats.map(([label, value, hint, Icon, tone]) => (
+                        <MetricCard key={label} label={label} value={value} hint={hint} icon={Icon} tone={tone} dark />
+                      ))}
+                    </div>
                   </div>
-                ))}
+                  <div className="rounded-lg border border-white/10 bg-white/6 p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">本周执行健康度</span>
+                      <Badge tone="green">可推进</Badge>
+                    </div>
+                    <ProgressRing value={dashboard.taskRate} label="任务完成率" />
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-300">
+                      <div className="rounded-md bg-white/6 p-3">
+                        <div>保留词</div>
+                        <strong className="mt-1 block text-lg text-white">{dashboard.keptKeywords}</strong>
+                      </div>
+                      <div className="rounded-md bg-white/6 p-3">
+                        <div>已上架</div>
+                        <strong className="mt-1 block text-lg text-white">{dashboard.listedCount}</strong>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <div className="grid grid-cols-4 gap-3">
+                <MetricCard label="关键词池" value={keywords.length} hint={`${dashboard.keptKeywords} 个已保留`} icon={Database} tone="blue" />
+                <MetricCard label="商品数" value={products.length} hint={`${dashboard.listingRate}% 已进入上架`} icon={Store} tone="green" />
+                <MetricCard label="检测提交" value={dashboard.checkedCount} hint="降低违规风险" icon={ShieldAlert} tone="amber" />
+                <MetricCard label="SOP进度" value="5/15" hint="先跑完基础闭环" icon={Rocket} tone="gray" />
               </div>
+
+              <div className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
+                <Panel title="7 天趋势" icon={LineChart} action={<Badge tone="blue">曝光 / 访客 / 成交额</Badge>}>
+                  <TrendBoard data={dailyMetrics} />
+                </Panel>
+                <Panel title="转化漏斗" icon={BarChart3}>
+                  <FunnelBoard latest={dashboard.latest} />
+                </Panel>
+              </div>
+
+              <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+                <Panel title="渠道表现" icon={Activity}>
+                  <ChannelBoard />
+                </Panel>
+                <Panel title="商品信号榜" icon={TrendingUp}>
+                  <ProductSignalBoard />
+                </Panel>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
-                <Panel title="今日执行" icon={CheckCircle2}>
+                <Panel title="今日执行" icon={CheckCircle2} action={<Badge tone={dashboard.taskRate >= 60 ? "green" : "amber"}>{dashboard.taskRate}%</Badge>}>
                   <TaskList tasks={tasks} setTasks={setTasks} compact />
                 </Panel>
-                <Panel title="项目节奏" icon={FileText}>
+                <Panel title="运营提醒" icon={FileText}>
                   <div className="grid gap-2 text-sm">
-                    {["找词 20 个", "筛出 10 个待测词", "做 3 个标题", "上架 1 个商品", "提交商品检测", "记录咨询和成交"].map((item) => (
-                      <div key={item} className="rounded-md border border-line px-3 py-2">{item}</div>
+                    {[
+                      ["先推", "PPT模板包有成交信号，今天优先补标题和主图"],
+                      ["补数", "关键词池偏少，继续补到 20 个再筛"],
+                      ["风控", "上架后记得提交商品检测，避免违规"],
+                      ["复盘", "每天记录曝光、咨询、成交，三天无咨询就换方向"]
+                    ].map(([label, item]) => (
+                      <div key={item} className="grid grid-cols-[52px_1fr] items-center gap-3 rounded-md border border-line px-3 py-2">
+                        <Badge tone={label === "风控" ? "amber" : "blue"}>{label}</Badge>
+                        <span>{item}</span>
+                      </div>
                     ))}
                   </div>
                 </Panel>
@@ -445,6 +566,169 @@ function DataTable({ headers, children }: { headers: string[]; children: React.R
         </thead>
         <tbody className="[&_td]:border-t [&_td]:border-line [&_td]:px-3 [&_td]:py-2">{children}</tbody>
       </table>
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  hint,
+  icon: Icon,
+  tone,
+  dark = false
+}: {
+  label: string;
+  value: string | number;
+  hint: string;
+  icon: LucideIcon;
+  tone: "blue" | "green" | "amber" | "gray";
+  dark?: boolean;
+}) {
+  const toneClass = {
+    blue: dark ? "bg-blue-400/15 text-blue-200" : "bg-blue-50 text-blue-700",
+    green: dark ? "bg-emerald-400/15 text-emerald-200" : "bg-emerald-50 text-emerald-700",
+    amber: dark ? "bg-amber-400/15 text-amber-200" : "bg-amber-50 text-amber-700",
+    gray: dark ? "bg-slate-400/15 text-slate-200" : "bg-slate-100 text-slate-700"
+  };
+
+  return (
+    <div className={`${dark ? "border-white/10 bg-white/6" : "border-line bg-white"} rounded-lg border p-4 shadow-panel`}>
+      <div className="flex items-center justify-between">
+        <span className={`text-xs ${dark ? "text-slate-300" : "text-slate-500"}`}>{label}</span>
+        <span className={`rounded-md p-1.5 ${toneClass[tone]}`}>
+          <Icon className="h-4 w-4" />
+        </span>
+      </div>
+      <div className={`mt-3 text-2xl font-semibold ${dark ? "text-white" : "text-ink"}`}>{String(value)}</div>
+      <div className={`mt-1 text-xs ${dark ? "text-slate-300" : "text-slate-500"}`}>{hint}</div>
+    </div>
+  );
+}
+
+function ProgressRing({ value, label }: { value: number; label: string }) {
+  const degrees = Math.max(0, Math.min(100, value)) * 3.6;
+  return (
+    <div className="mt-5 flex items-center gap-4">
+      <div
+        className="grid h-28 w-28 place-items-center rounded-full"
+        style={{ background: `conic-gradient(#34d399 ${degrees}deg, rgba(255,255,255,0.12) 0deg)` }}
+      >
+        <div className="grid h-20 w-20 place-items-center rounded-full bg-ink text-center">
+          <div>
+            <div className="text-2xl font-semibold">{value}%</div>
+            <div className="text-[11px] text-slate-400">{label}</div>
+          </div>
+        </div>
+      </div>
+      <div className="text-sm leading-6 text-slate-300">
+        <div>今日目标：先完成一个可卖闭环。</div>
+        <div>判断标准：有词、有图、有上架、有检测。</div>
+      </div>
+    </div>
+  );
+}
+
+function TrendBoard({ data }: { data: DailyMetric[] }) {
+  const maxExposure = Math.max(...data.map((item) => item.exposure));
+  const maxRevenue = Math.max(...data.map((item) => item.revenue));
+
+  return (
+    <div className="space-y-4">
+      <div className="grid h-56 grid-cols-7 items-end gap-3 rounded-lg bg-slate-50 p-4">
+        {data.map((item) => (
+          <div key={item.date} className="flex h-full flex-col justify-end gap-2">
+            <div className="flex flex-1 items-end gap-1">
+              <div
+                className="w-full rounded-t bg-blue-500"
+                title={`曝光 ${item.exposure}`}
+                style={{ height: `${Math.max(12, (item.exposure / maxExposure) * 100)}%` }}
+              />
+              <div
+                className="w-full rounded-t bg-emerald-500"
+                title={`成交额 ${item.revenue}`}
+                style={{ height: `${Math.max(8, maxRevenue ? (item.revenue / maxRevenue) * 100 : 8)}%` }}
+              />
+            </div>
+            <div className="text-center text-xs text-slate-500">{item.date}</div>
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center gap-4 text-xs text-slate-500">
+        <span className="inline-flex items-center gap-1"><i className="h-2 w-2 rounded-sm bg-blue-500" />曝光</span>
+        <span className="inline-flex items-center gap-1"><i className="h-2 w-2 rounded-sm bg-emerald-500" />成交额</span>
+        <span>趋势用于判断方向是否继续加码，不是财务报表。</span>
+      </div>
+    </div>
+  );
+}
+
+function FunnelBoard({ latest }: { latest: DailyMetric }) {
+  const rows = [
+    ["曝光", latest.exposure, "bg-blue-500"],
+    ["访客", latest.visitors, "bg-cyan-500"],
+    ["咨询", latest.consults, "bg-amber-500"],
+    ["成交", latest.orders, "bg-emerald-500"]
+  ] as const;
+  const max = latest.exposure || 1;
+
+  return (
+    <div className="space-y-3">
+      {rows.map(([label, value, color]) => (
+        <div key={label}>
+          <div className="mb-1 flex items-center justify-between text-sm">
+            <span>{label}</span>
+            <strong>{value}</strong>
+          </div>
+          <div className="h-8 rounded-md bg-slate-100 p-1">
+            <div className={`h-full rounded ${color}`} style={{ width: `${Math.max(8, (value / max) * 100)}%` }} />
+          </div>
+        </div>
+      ))}
+      <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        咨询到成交偏低时，优先优化标题、价格和首图承诺。
+      </div>
+    </div>
+  );
+}
+
+function ChannelBoard() {
+  const max = Math.max(...channelMetrics.map((item) => item.exposure));
+
+  return (
+    <div className="space-y-4">
+      {channelMetrics.map((item) => (
+        <div key={item.name} className="space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium">{item.name}</span>
+            <span className="text-slate-500">{item.consults} 咨询 / {item.orders} 成交</span>
+          </div>
+          <div className="h-3 rounded-full bg-slate-100">
+            <div className={`h-full rounded-full ${item.color}`} style={{ width: `${(item.exposure / max) * 100}%` }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ProductSignalBoard() {
+  return (
+    <div className="grid gap-3">
+      {productSignals.map((item, index) => (
+        <div key={item.name} className="grid grid-cols-[36px_1fr_92px_76px_76px] items-center gap-3 rounded-md border border-line px-3 py-3 text-sm">
+          <Badge tone={index === 0 ? "green" : index === 1 ? "blue" : "amber"}>{index + 1}</Badge>
+          <div>
+            <div className="font-medium">{item.name}</div>
+            <div className="mt-1 h-2 rounded-full bg-slate-100">
+              <div className="h-full rounded-full bg-ink" style={{ width: `${item.score}%` }} />
+            </div>
+          </div>
+          <div className="text-right font-semibold">¥{item.revenue.toFixed(1)}</div>
+          <Badge tone={item.trend.startsWith("+") ? "green" : "amber"}>{item.trend}</Badge>
+          <Badge tone={index === 0 ? "green" : "gray"}>{item.status}</Badge>
+        </div>
+      ))}
     </div>
   );
 }
