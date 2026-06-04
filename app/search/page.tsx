@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Search, ExternalLink, ShoppingBag, TrendingUp, Filter, ArrowLeft, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import Link from "next/link";
-const API_BASE = "http://124.222.223.153:8000";
+const API_BASE = "/api";
 type Item = { title: string; price: number; sales: number; shop: string; img: string; link: string; itemId: string; };
 type SearchResult = { keyword: string; min_price: number; max_price: number; total: number; items: Item[]; };
 export default function SearchPage() {
