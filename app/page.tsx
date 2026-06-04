@@ -340,6 +340,49 @@ const researchSources = [
   "商品案例按可交付、可复制、低售后、低版权风险优先排序。"
 ];
 
+const liveResearchFindings = [
+  {
+    direction: "高考志愿填报",
+    xhsSignals: "小红书出现：高考志愿填报清单电子版、高考志愿表电子版模板、广东高考志愿表pdf下载、志愿填报五步法。",
+    shopSignals: "电商侧出现：高考志愿填报数据、录取分数线、投档线、专业分数电子版，价格低至几元起。",
+    decision: "可做",
+    product: "2026高考志愿填报清单 + 院校对比表 + 专业避坑表",
+    priority: 95
+  },
+  {
+    direction: "毕业季拍照",
+    xhsSignals: "小红书出现：毕业季剪映模板、拍照参考模板、毕业季照片排版、学士服万能拍照姿势、9个场景81个姿势。",
+    shopSignals: "电商侧素材站有毕业拍照姿势、毕业照人物素材、拍照模板等案例，但版权风险较高。",
+    decision: "谨慎做",
+    product: "毕业季拍照姿势清单 + 朋友圈文案 + 自制九宫格排版",
+    priority: 72
+  },
+  {
+    direction: "期末复习计划表",
+    xhsSignals: "小红书出现：电子版、可打印、期末学习计划表模板、各年级期末复习计划表、三轮复习法。",
+    shopSignals: "电商侧出现：Excel模板、Word模板、期末复习计划表、小学初中高中通用模板。",
+    decision: "可做",
+    product: "期末复习计划表 + 错题整理表 + 背诵打卡表",
+    priority: 88
+  },
+  {
+    direction: "暑假旅行攻略",
+    xhsSignals: "小红书出现：旅行excel模板、旅行行程表模板、暑假旅行攻略电子版、行李清单、暑期旅游计划模板。",
+    shopSignals: "电商侧出现：旅行计划Excel表、行程/清单/预算模板、自驾游规划自动化表格。",
+    decision: "可做",
+    product: "暑假旅行攻略Excel + 行李清单 + 预算表 + 路线规划表",
+    priority: 82
+  },
+  {
+    direction: "AI小红书文案提示词",
+    xhsSignals: "小红书出现：小红书AI提示词大全、AI图文提示词、DeepSeek小红书文案指令、复制可用提示词。",
+    shopSignals: "电商侧出现：AI提示词资料包、AI带货提示词、AI文案教程和小服务案例。",
+    decision: "可做",
+    product: "小红书AI文案提示词包 + 行业案例 + 改写模板",
+    priority: 86
+  }
+];
+
 const collectorBookmarklet =
   "javascript:(()=>{const t=document.body.innerText.replace(/\\n{3,}/g,'\\n\\n');navigator.clipboard.writeText(t);alert('已复制当前页面可见文字，回到选品系统粘贴导入');})();";
 
@@ -834,6 +877,14 @@ export default function HomePage() {
                       onCreateProduct={() => createProductFromTopic(topic)}
                       onRemove={() => setHotTopics(hotTopics.filter((item) => item.id !== topic.id))}
                     />
+                  ))}
+                </div>
+              </Panel>
+
+              <Panel title="本次抓取批次" icon={Search} action={<Badge tone="green">小红书 + 电商核验</Badge>}>
+                <div className="grid gap-3">
+                  {liveResearchFindings.map((item) => (
+                    <ResearchFindingCard key={item.direction} item={item} />
                   ))}
                 </div>
               </Panel>
@@ -1366,6 +1417,40 @@ function ProductCaseCard({
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
           <div className="text-xs text-amber-700">风险提醒</div>
           <div className="mt-1 leading-5 text-amber-900">{item.risk}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ResearchFindingCard({ item }: { item: (typeof liveResearchFindings)[number] }) {
+  return (
+    <div className="rounded-lg border border-line bg-white p-3">
+      <div className="grid grid-cols-[1fr_92px_80px] items-start gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <strong className="text-base">{item.direction}</strong>
+            <Badge tone={item.decision === "可做" ? "green" : "amber"}>{item.decision}</Badge>
+            <Badge tone="blue">优先级 {item.priority}</Badge>
+          </div>
+          <div className="mt-2 grid gap-2 text-sm">
+            <div className="rounded-md bg-rose-50 px-3 py-2 text-rose-900">
+              <span className="font-medium">小红书信号：</span>{item.xhsSignals}
+            </div>
+            <div className="rounded-md bg-blue-50 px-3 py-2 text-blue-900">
+              <span className="font-medium">电商核验：</span>{item.shopSignals}
+            </div>
+            <div className="rounded-md bg-slate-50 px-3 py-2">
+              <span className="font-medium">建议商品：</span>{item.product}
+            </div>
+          </div>
+        </div>
+        <div className="rounded-md bg-slate-50 p-3 text-center">
+          <div className="text-xs text-slate-500">选品优先级</div>
+          <div className="mt-1 text-3xl font-semibold">{item.priority}</div>
+        </div>
+        <div className="h-full rounded-md bg-ink text-white">
+          <div className="grid h-full place-items-center text-sm">已核验</div>
         </div>
       </div>
     </div>
