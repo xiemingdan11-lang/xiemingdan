@@ -10,6 +10,7 @@ import {
   ExternalLink,
   FileText,
   Flame,
+  Globe2,
   Home,
   Layers,
   LineChart,
@@ -93,6 +94,21 @@ type HotTopic = {
   price: number;
   difficulty: number;
   note: string;
+};
+
+type TrendTopic = {
+  id: number;
+  source: string;
+  hotword: string;
+  scene: string;
+  audience: string;
+  productType: string;
+  deliverables: string;
+  title: string;
+  price: string;
+  materialPlan: string;
+  risk: string;
+  priority: number;
 };
 
 const initialKeywords: Keyword[] = [
@@ -383,6 +399,107 @@ const liveResearchFindings = [
   }
 ];
 
+const initialTrendTopics: TrendTopic[] = [
+  {
+    id: 1,
+    source: "百度/知乎/小红书",
+    hotword: "高考志愿填报",
+    scene: "6月高考后强需求",
+    audience: "高三家长、考生",
+    productType: "教程 + 表格模板",
+    deliverables: "志愿填报流程图、院校对比表、专业避坑清单、一分一段记录表、家长沟通话术",
+    title: "2026高考志愿填报清单专业避坑表院校对比Excel电子版",
+    price: "19.9-39.9",
+    materialPlan: "搜集各省志愿规则、公开一分一段表、专业介绍，整理成Excel和PDF，不承诺录取结果。",
+    risk: "不能写保录取、内部数据、官方预测；只做辅助工具。",
+    priority: 96
+  },
+  {
+    id: 2,
+    source: "微博/小红书/抖音",
+    hotword: "毕业季拍照",
+    scene: "毕业季节点",
+    audience: "大学生、高中生、摄影约拍用户",
+    productType: "教程 + 素材清单",
+    deliverables: "单人姿势、多人合照、教室操场场景、朋友圈文案、九宫格排版模板",
+    title: "毕业季拍照姿势大全朋友圈文案九宫格排版模板电子版",
+    price: "9.9-19.9",
+    materialPlan: "自己整理姿势示意图、AI生成示意图、收集无版权排版灵感，做PDF手册。",
+    risk: "不要搬运摄影师原图；参考图优先自制或AI生成。",
+    priority: 74
+  },
+  {
+    id: 3,
+    source: "百度/小红书",
+    hotword: "期末复习计划",
+    scene: "期末考试前两到四周",
+    audience: "小初高学生、家长、大学生",
+    productType: "表格模板 + 复习教程",
+    deliverables: "7天计划表、14天计划表、错题整理表、背诵打卡表、三轮复习法说明",
+    title: "期末复习计划表可打印错题整理背诵打卡模板电子版",
+    price: "6.9-15.9",
+    materialPlan: "按年级和科目拆分计划表，做可打印PDF和可编辑Excel。",
+    risk: "避免提分承诺；写学习规划工具。",
+    priority: 88
+  },
+  {
+    id: 4,
+    source: "小红书/抖音/百度",
+    hotword: "暑假旅行攻略",
+    scene: "暑假出行前置规划",
+    audience: "学生党、亲子家庭、情侣出游",
+    productType: "攻略模板 + 清单",
+    deliverables: "行程表、预算表、行李清单、拍照机位表、城市攻略模板、避坑清单",
+    title: "暑假旅行攻略模板Excel行程预算表行李清单电子版",
+    price: "9.9-19.9",
+    materialPlan: "做通用旅行规划模板，再按热门城市复制出城市版。",
+    risk: "城市信息要标注需自行核验，不搬运他人攻略图片。",
+    priority: 82
+  },
+  {
+    id: 5,
+    source: "知乎/小红书/公众号",
+    hotword: "AI提示词 副业",
+    scene: "AI工具持续热",
+    audience: "自媒体新手、副业用户、小商家",
+    productType: "教程 + 提示词包",
+    deliverables: "小红书文案提示词、标题公式、封面提示词、行业案例、改写模板",
+    title: "小红书AI爆款文案提示词DeepSeek豆包通用教程资料包",
+    price: "19.9-49.9",
+    materialPlan: "按行业拆提示词，配改写前后案例，附操作步骤截图。",
+    risk: "不能承诺爆款和收益；写提效工具。",
+    priority: 86
+  },
+  {
+    id: 6,
+    source: "微博/百度/什么值得买",
+    hotword: "618购物节",
+    scene: "大促前后",
+    audience: "学生党、宝妈、数码用户",
+    productType: "选购清单 + 比价表",
+    deliverables: "购物预算表、比价记录表、家电数码选购清单、避坑指南",
+    title: "618购物清单比价表预算表家电数码选购避坑指南电子版",
+    price: "6.9-19.9",
+    materialPlan: "按品类整理选购参数，不推荐具体店铺返利，做中立清单。",
+    risk: "不要做虚假优惠承诺，不碰返利违规宣传。",
+    priority: 70
+  },
+  {
+    id: 7,
+    source: "知乎/小红书/百度",
+    hotword: "毕业入职 租房搬家",
+    scene: "毕业后入职租房季",
+    audience: "应届生、实习生、异地入职人群",
+    productType: "清单 + 教程",
+    deliverables: "租房检查表、合同避坑清单、搬家清单、入职准备表、预算表",
+    title: "应届生租房搬家入职准备清单合同避坑表电子版",
+    price: "9.9-19.9",
+    materialPlan: "整理租房看房检查项、通勤预算、押金水电注意事项。",
+    risk: "不提供法律结论，只做检查清单。",
+    priority: 80
+  }
+];
+
 const collectorBookmarklet =
   "javascript:(()=>{const t=document.body.innerText.replace(/\\n{3,}/g,'\\n\\n');navigator.clipboard.writeText(t);alert('已复制当前页面可见文字，回到选品系统粘贴导入');})();";
 
@@ -413,6 +530,7 @@ const nav = [
   ["overview", "总览", Home],
   ["sop", "视频精华/SOP", BookOpen],
   ["hotspot", "小红书热点选品", Flame],
+  ["trends", "热榜教程选品", Globe2],
   ["keywords", "关键词库", Search],
   ["screen", "筛词工作台", Tags],
   ["products", "商品库", Store],
@@ -469,8 +587,10 @@ export default function HomePage() {
   const [listings, setListings] = useLocalState("vp_listings", initialListings);
   const [sopRecords, setSopRecords] = useLocalState("vp_sop_records", initialSopRecords);
   const [hotTopics, setHotTopics] = useLocalState("vp_hot_topics", initialHotTopics);
+  const [trendTopics, setTrendTopics] = useLocalState("vp_trend_topics", initialTrendTopics);
   const [newWord, setNewWord] = useState("");
   const [collectorText, setCollectorText] = useState("");
+  const [trendInput, setTrendInput] = useState("");
   const [hotForm, setHotForm] = useState({
     word: "",
     category: "学习资料",
@@ -590,6 +710,32 @@ export default function HomePage() {
       ...products
     ]);
     setTab("products");
+  };
+
+  const createProductFromTrend = (topic: TrendTopic) => {
+    setProducts([
+      {
+        id: Date.now(),
+        name: topic.productType.includes("提示词") ? `${topic.hotword}资料包` : `${topic.hotword}${topic.productType.includes("表格") ? "模板包" : "教程包"}`,
+        keyword: topic.hotword,
+        platform: "淘宝/闲鱼",
+        title: topic.title,
+        price: Number(topic.price.split("-")[0]) || 9.9,
+        cover: "待做",
+        detail: "待做",
+        delivery: "PDF/Excel/网盘链接",
+        status: "热榜草稿"
+      },
+      ...products
+    ]);
+    setTab("products");
+  };
+
+  const addTrendFromInput = () => {
+    const parsed = parseTrendInput(trendInput);
+    if (!parsed.length) return;
+    setTrendTopics([...parsed, ...trendTopics]);
+    setTrendInput("");
   };
 
   const importCollectorText = () => {
@@ -926,6 +1072,59 @@ export default function HomePage() {
             </div>
           )}
 
+          {tab === "trends" && (
+            <div className="grid gap-4">
+              <section className="rounded-lg border border-line bg-white p-4 shadow-panel">
+                <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+                  <div>
+                    <div className="flex items-center gap-2 text-sm font-semibold">
+                      <Globe2 className="h-4 w-4 text-blue-600" />
+                      TopHub 热榜教程选品
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                      把 TopHub、微博、百度、知乎、小红书看到的热点词粘进来，系统会把它转成可做的教程、模板、清单或资料包方向。
+                    </p>
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      <MetricCard label="候选方向" value={trendTopics.length} hint="热榜选品池" icon={Globe2} tone="blue" />
+                      <MetricCard label="高优先级" value={trendTopics.filter((item) => item.priority >= 85).length} hint="建议先做" icon={TrendingUp} tone="green" />
+                      <MetricCard label="低风险" value={trendTopics.filter((item) => !item.risk.includes("版权")).length} hint="更适合资料包" icon={ShieldAlert} tone="amber" />
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-line bg-slate-50 p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <strong className="text-sm">导入热榜词</strong>
+                      <a href="https://tophub.today/" target="_blank" className="inline-flex items-center gap-1 rounded-md border border-line bg-white px-2 py-1 text-xs hover:bg-slate-50">
+                        打开 TopHub <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
+                    <textarea
+                      value={trendInput}
+                      onChange={(event) => setTrendInput(event.target.value)}
+                      placeholder="一行一个热点词，例如：高考志愿填报、毕业季拍照、618购物节、AI提示词、租房避坑..."
+                      className="h-32 w-full rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+                    />
+                    <button onClick={addTrendFromInput} className="mt-3 w-full rounded-md bg-ink px-3 py-2 text-sm text-white hover:bg-slate-800">
+                      <Wand2 className="inline h-4 w-4" /> 转成教程产品候选
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+              <Panel title="热榜教程产品候选" icon={Globe2} action={<Badge tone="blue">按优先级排序</Badge>}>
+                <div className="grid gap-3">
+                  {[...trendTopics].sort((a, b) => b.priority - a.priority).map((item) => (
+                    <TrendTopicCard
+                      key={item.id}
+                      item={item}
+                      onCreate={() => createProductFromTrend(item)}
+                      onRemove={() => setTrendTopics(trendTopics.filter((topic) => topic.id !== item.id))}
+                    />
+                  ))}
+                </div>
+              </Panel>
+            </div>
+          )}
+
           {tab === "keywords" && (
             <Panel title="关键词库" icon={Search}>
               <div className="mb-3 flex gap-2">
@@ -1251,6 +1450,113 @@ function parseXhsCollectorText(text: string): HotTopic[] {
   }));
 }
 
+function parseTrendInput(text: string): TrendTopic[] {
+  return text
+    .split(/\n|,|，|、/)
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 2)
+    .slice(0, 20)
+    .map((hotword, index) => buildTrendTopic(hotword, Date.now() + index));
+}
+
+function buildTrendTopic(hotword: string, id: number): TrendTopic {
+  const lower = hotword.toLowerCase();
+  if (/高考|中考|志愿|升学|专业/.test(hotword)) {
+    return {
+      id,
+      source: "热榜导入",
+      hotword,
+      scene: "考试升学节点",
+      audience: "学生、家长",
+      productType: "教程 + 表格模板",
+      deliverables: "流程清单、对比表、避坑表、时间轴、家长话术",
+      title: `${hotword}清单Excel表格模板避坑指南电子版`,
+      price: "19.9-39.9",
+      materialPlan: "整理公开规则和表格模板，做成PDF+Excel，不承诺结果。",
+      risk: "不能写保录取、内部预测。",
+      priority: 92
+    };
+  }
+  if (/毕业|拍照|写真|剪映|照片/.test(hotword)) {
+    return {
+      id,
+      source: "热榜导入",
+      hotword,
+      scene: "毕业季/影像记录",
+      audience: "学生、摄影用户",
+      productType: "教程 + 文案模板",
+      deliverables: "姿势清单、场景清单、朋友圈文案、排版模板、剪映模板整理",
+      title: `${hotword}姿势文案排版教程模板电子版`,
+      price: "9.9-19.9",
+      materialPlan: "自制示意图、AI生成示意图、整理拍摄清单。",
+      risk: "避免搬运摄影师原图。",
+      priority: 74
+    };
+  }
+  if (/AI|deepseek|chatgpt|豆包|gemini|提示词|文案/.test(hotword) || lower.includes("ai")) {
+    return {
+      id,
+      source: "热榜导入",
+      hotword,
+      scene: "AI工具提效",
+      audience: "自媒体、小商家、副业人群",
+      productType: "教程 + 提示词包",
+      deliverables: "提示词、案例、操作流程、改写模板、行业模板",
+      title: `${hotword}提示词教程案例资料包复制可用`,
+      price: "19.9-49.9",
+      materialPlan: "按场景拆提示词，附原文/改写后案例。",
+      risk: "不能承诺爆款、收益。",
+      priority: 86
+    };
+  }
+  if (/旅行|旅游|攻略|暑假|行李|路线/.test(hotword)) {
+    return {
+      id,
+      source: "热榜导入",
+      hotword,
+      scene: "假期出行规划",
+      audience: "学生、亲子家庭、情侣",
+      productType: "表格模板 + 清单",
+      deliverables: "行程表、预算表、行李清单、路线规划、避坑清单",
+      title: `${hotword}Excel行程预算表行李清单电子版`,
+      price: "9.9-19.9",
+      materialPlan: "做通用模板，再拓展城市版本。",
+      risk: "城市信息需标注自行核验。",
+      priority: 82
+    };
+  }
+  if (/618|双11|购物|大促|选购|比价/.test(hotword)) {
+    return {
+      id,
+      source: "热榜导入",
+      hotword,
+      scene: "购物决策",
+      audience: "学生党、宝妈、数码用户",
+      productType: "选购清单 + 比价表",
+      deliverables: "预算表、比价表、参数清单、避坑指南",
+      title: `${hotword}购物比价表预算清单选购避坑指南`,
+      price: "6.9-19.9",
+      materialPlan: "按品类整理参数和预算，不做返利承诺。",
+      risk: "避免虚假优惠和返利违规。",
+      priority: 70
+    };
+  }
+  return {
+    id,
+    source: "热榜导入",
+    hotword,
+    scene: "热点事件延伸需求",
+    audience: "有同类痛点的人群",
+    productType: "教程/清单/模板",
+    deliverables: "步骤教程、检查清单、资料模板、案例复盘",
+    title: `${hotword}教程清单模板资料包电子版`,
+    price: "9.9-29.9",
+    materialPlan: "先拆用户痛点，再整理成清单、教程或模板。",
+    risk: "避免直接搬运热点原文和版权素材。",
+    priority: 60
+  };
+}
+
 function guessTopicCategory(word: string) {
   if (/高考|志愿|升学|专业|院校/.test(word)) return "升学资料";
   if (/毕业|拍照|写真|朋友圈|文案/.test(word)) return "图片素材";
@@ -1451,6 +1757,72 @@ function ResearchFindingCard({ item }: { item: (typeof liveResearchFindings)[num
         </div>
         <div className="h-full rounded-md bg-ink text-white">
           <div className="grid h-full place-items-center text-sm">已核验</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TrendTopicCard({
+  item,
+  onCreate,
+  onRemove
+}: {
+  item: TrendTopic;
+  onCreate: () => void;
+  onRemove: () => void;
+}) {
+  const copyText = [
+    `热点：${item.hotword}`,
+    `来源：${item.source}`,
+    `适用场景：${item.scene}`,
+    `目标人群：${item.audience}`,
+    `产品类型：${item.productType}`,
+    `交付内容：${item.deliverables}`,
+    `商品标题：${item.title}`,
+    `价格：${item.price}`,
+    `素材搜集：${item.materialPlan}`,
+    `风险：${item.risk}`
+  ].join("\n");
+
+  const copy = () => {
+    void navigator.clipboard?.writeText(copyText);
+  };
+
+  return (
+    <div className="rounded-lg border border-line bg-white p-3">
+      <div className="grid grid-cols-[1fr_96px_108px] items-start gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <strong className="text-base">{item.hotword}</strong>
+            <Badge tone="blue">{item.source}</Badge>
+            <Badge tone={item.priority >= 85 ? "green" : item.priority >= 70 ? "blue" : "amber"}>优先级 {item.priority}</Badge>
+          </div>
+          <div className="mt-2 text-sm text-slate-600">{item.scene} / {item.audience}</div>
+          <div className="mt-2 rounded-md bg-slate-50 px-3 py-2 text-sm font-medium">{item.title}</div>
+        </div>
+        <div className="rounded-md bg-slate-50 p-3 text-center">
+          <div className="text-xs text-slate-500">建议价格</div>
+          <div className="mt-2 font-semibold">{item.price}</div>
+        </div>
+        <div className="grid gap-2">
+          <button onClick={copy} className="rounded-md border border-line px-3 py-2 text-sm hover:bg-slate-50">复制方案</button>
+          <button onClick={onCreate} className="rounded-md bg-ink px-3 py-2 text-sm text-white hover:bg-slate-800">生成商品</button>
+          <button onClick={onRemove} className="rounded-md border border-line px-3 py-2 text-sm text-slate-500 hover:bg-slate-50">移除</button>
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
+        <div className="rounded-md border border-line p-3">
+          <div className="text-xs text-slate-500">交付内容</div>
+          <div className="mt-1 leading-5">{item.deliverables}</div>
+        </div>
+        <div className="rounded-md border border-line p-3">
+          <div className="text-xs text-slate-500">素材搜集方向</div>
+          <div className="mt-1 leading-5">{item.materialPlan}</div>
+        </div>
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
+          <div className="text-xs text-amber-700">风险提醒</div>
+          <div className="mt-1 leading-5 text-amber-900">{item.risk}</div>
         </div>
       </div>
     </div>
