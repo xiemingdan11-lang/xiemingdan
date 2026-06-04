@@ -215,6 +215,28 @@ const productSignals = [
 const initialHotTopics: HotTopic[] = [
   {
     id: 1,
+    word: "2026高考志愿填报清单",
+    category: "升学资料",
+    likes: 1480,
+    comments: 126,
+    competitors: 24,
+    price: 19.9,
+    difficulty: 3,
+    note: "6月强节点，适合做家长向清单、专业避坑表、志愿填报时间轴"
+  },
+  {
+    id: 2,
+    word: "毕业季拍照姿势模板",
+    category: "图片素材",
+    likes: 980,
+    comments: 88,
+    competitors: 22,
+    price: 12.9,
+    difficulty: 2,
+    note: "毕业季节点，适合做拍照姿势参考、朋友圈文案、九宫格模板"
+  },
+  {
+    id: 3,
     word: "期末复习计划表",
     category: "学习资料",
     likes: 860,
@@ -225,7 +247,18 @@ const initialHotTopics: HotTopic[] = [
     note: "小红书大量学生党收藏，适合做可打印模板包"
   },
   {
-    id: 2,
+    id: 4,
+    word: "暑假旅行攻略模板",
+    category: "旅游攻略",
+    likes: 740,
+    comments: 53,
+    competitors: 19,
+    price: 16.9,
+    difficulty: 2,
+    note: "暑假前置需求，适合做城市攻略、行李清单、预算表"
+  },
+  {
+    id: 5,
     word: "副业记账模板",
     category: "办公效率",
     likes: 620,
@@ -236,17 +269,79 @@ const initialHotTopics: HotTopic[] = [
     note: "用户愿意为省时间付费，可做 Excel/飞书双版本"
   },
   {
-    id: 3,
-    word: "美甲款式参考图",
-    category: "图片素材",
-    likes: 1200,
-    comments: 96,
-    competitors: 35,
-    price: 12.9,
-    difficulty: 4,
-    note: "热度高但素材版权和同质化风险更高"
+    id: 6,
+    word: "AI小红书爆款文案提示词",
+    category: "AI工具",
+    likes: 690,
+    comments: 61,
+    competitors: 28,
+    price: 29.9,
+    difficulty: 3,
+    note: "AI提效内容仍有搜索需求，适合做提示词包和案例拆解"
   }
 ];
+
+const productCases = [
+  {
+    topic: "2026高考志愿填报清单",
+    product: "2026高考志愿填报资料包",
+    title: "2026高考志愿填报清单Excel专业避坑表时间轴家长版电子资料",
+    price: "19.9-39.9",
+    package: "志愿填报流程图、专业避坑表、院校对比表、时间节点清单、家长沟通话术",
+    delivery: "Excel + PDF + 网盘链接",
+    noteTitle: "高考后别乱填志愿，家长先把这5张表准备好",
+    risk: "不能承诺录取结果，文案写辅助工具，不写保录取"
+  },
+  {
+    topic: "毕业季拍照姿势模板",
+    product: "毕业季拍照姿势与文案模板包",
+    title: "毕业季拍照姿势参考图朋友圈文案九宫格排版模板电子版",
+    price: "9.9-19.9",
+    package: "姿势参考、构图示例、朋友圈文案、九宫格排版、宿舍/操场/教室场景清单",
+    delivery: "PDF + 图片参考包",
+    noteTitle: "毕业照不会摆姿势，照着这套清单拍就够了",
+    risk: "参考图注意版权，优先用自制示意图或AI生成图"
+  },
+  {
+    topic: "期末复习计划表",
+    product: "期末复习计划表模板包",
+    title: "期末复习计划表可打印每日打卡错题整理电子版模板",
+    price: "6.9-12.9",
+    package: "7天计划表、14天计划表、错题整理表、背诵打卡表、考试倒计时表",
+    delivery: "PDF + Excel",
+    noteTitle: "期末前两周这样安排，复习不乱套",
+    risk: "不要写提分承诺，写计划工具和自律模板"
+  },
+  {
+    topic: "暑假旅行攻略模板",
+    product: "暑假旅行攻略计划表",
+    title: "暑假旅行攻略模板行李清单预算表路线规划亲子情侣通用电子版",
+    price: "9.9-19.9",
+    package: "行李清单、预算表、路线规划、拍照机位表、避坑清单",
+    delivery: "Excel + PDF",
+    noteTitle: "暑假出门前，把这张旅行计划表填完",
+    risk: "城市攻略要避免搬运原图，路线信息要标注需自行核验"
+  },
+  {
+    topic: "AI小红书爆款文案提示词",
+    product: "小红书AI文案提示词案例包",
+    title: "AI小红书爆款文案提示词副业学习美业探店通用模板案例包",
+    price: "19.9-49.9",
+    package: "标题公式、正文结构、评论引导、20个行业提示词、10个改写案例",
+    delivery: "Word + 飞书文档",
+    noteTitle: "不会写小红书？把这套AI提示词直接套进去",
+    risk: "提示词不能保证爆款，文案写提效模板，不写必火"
+  }
+];
+
+const researchSources = [
+  "公开资料显示，小红书搜索与长尾关键词仍是普通账号的重要流量入口。",
+  "2026年6月节点适合优先围绕高考、毕业、期末、暑假、旅行、AI提效做虚拟资料测试。",
+  "商品案例按可交付、可复制、低售后、低版权风险优先排序。"
+];
+
+const collectorBookmarklet =
+  "javascript:(()=>{const t=document.body.innerText.replace(/\\n{3,}/g,'\\n\\n');navigator.clipboard.writeText(t);alert('已复制当前页面可见文字，回到选品系统粘贴导入');})();";
 
 const sop = [
   { title: "1 大课介绍", body: "理解项目结构，按找词、选品、上架、检测、发货推进", output: "写下项目闭环和今天主线", target: "overview" },
@@ -332,6 +427,7 @@ export default function HomePage() {
   const [sopRecords, setSopRecords] = useLocalState("vp_sop_records", initialSopRecords);
   const [hotTopics, setHotTopics] = useLocalState("vp_hot_topics", initialHotTopics);
   const [newWord, setNewWord] = useState("");
+  const [collectorText, setCollectorText] = useState("");
   const [hotForm, setHotForm] = useState({
     word: "",
     category: "学习资料",
@@ -451,6 +547,13 @@ export default function HomePage() {
       ...products
     ]);
     setTab("products");
+  };
+
+  const importCollectorText = () => {
+    const imported = parseXhsCollectorText(collectorText);
+    if (!imported.length) return;
+    setHotTopics([...imported, ...hotTopics]);
+    setCollectorText("");
   };
 
   return (
@@ -643,6 +746,38 @@ export default function HomePage() {
 
           {tab === "hotspot" && (
             <div className="grid gap-4">
+              <section className="rounded-lg border border-blue-200 bg-blue-50 p-4 shadow-panel">
+                <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+                  <div>
+                    <div className="flex items-center gap-2 text-sm font-semibold text-blue-900">
+                      <Wand2 className="h-4 w-4" />
+                      真实小红书内容导入
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-blue-900/80">
+                      在小红书搜索结果页或笔记页复制可见文字，粘到这里，系统会自动提取候选热点词并估算选品分。这个比手动一个个填更接近实际使用。
+                    </p>
+                    <textarea
+                      value={collectorText}
+                      onChange={(event) => setCollectorText(event.target.value)}
+                      placeholder="粘贴小红书搜索结果/笔记页文字，例如标题、点赞、评论、收藏、价格、关键词..."
+                      className="mt-3 h-32 w-full rounded-md border border-blue-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500"
+                    />
+                    <button onClick={importCollectorText} className="mt-3 rounded-md bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-800">
+                      智能导入为热点词
+                    </button>
+                  </div>
+                  <div className="rounded-lg border border-blue-200 bg-white p-3">
+                    <div className="text-sm font-semibold">浏览器采集书签</div>
+                    <p className="mt-2 text-xs leading-5 text-slate-600">
+                      新建一个浏览器书签，把下面代码放进网址。打开小红书页面后点这个书签，会复制当前页面可见文本，再粘到左侧导入框。
+                    </p>
+                    <code className="mt-3 block max-h-28 overflow-auto rounded-md bg-slate-950 p-3 text-xs leading-5 text-slate-100">
+                      {collectorBookmarklet}
+                    </code>
+                  </div>
+                </div>
+              </section>
+
               <section className="rounded-lg border border-line bg-white p-4 shadow-panel">
                 <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
                   <div>
@@ -698,6 +833,41 @@ export default function HomePage() {
                       onAddKeyword={() => addHotTopicToKeyword(topic)}
                       onCreateProduct={() => createProductFromTopic(topic)}
                       onRemove={() => setHotTopics(hotTopics.filter((item) => item.id !== topic.id))}
+                    />
+                  ))}
+                </div>
+              </Panel>
+
+              <Panel title="可复制商品案例" icon={Store} action={<Badge tone="green">可直接测试</Badge>}>
+                <div className="mb-3 grid grid-cols-3 gap-2">
+                  {researchSources.map((item) => (
+                    <div key={item} className="rounded-md border border-line bg-slate-50 p-3 text-xs leading-5 text-slate-600">
+                      {item}
+                    </div>
+                  ))}
+                </div>
+                <div className="grid gap-3">
+                  {productCases.map((item) => (
+                    <ProductCaseCard
+                      key={item.product}
+                      item={item}
+                      onCreate={() =>
+                        setProducts([
+                          {
+                            id: Date.now(),
+                            name: item.product,
+                            keyword: item.topic,
+                            platform: "淘宝/闲鱼",
+                            title: item.title,
+                            price: Number(item.price.split("-")[0]) || 9.9,
+                            cover: "待做",
+                            detail: "待做",
+                            delivery: item.delivery,
+                            status: "案例草稿"
+                          },
+                          ...products
+                        ])
+                      }
                     />
                   ))}
                 </div>
@@ -1002,6 +1172,56 @@ function getProductIdea(topic: HotTopic) {
   };
 }
 
+function parseXhsCollectorText(text: string): HotTopic[] {
+  const lines = text
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter((line) => line.length >= 4 && line.length <= 36)
+    .filter((line) => !/^(赞|收藏|评论|分享|关注|登录|首页|发现|消息|我)$/.test(line));
+  const unique = Array.from(new Set(lines)).slice(0, 12);
+  const numbers = Array.from(text.matchAll(/\d+(?:\.\d+)?\s*(?:万|w|W)?/g)).map((match) => {
+    const raw = match[0];
+    const value = Number.parseFloat(raw);
+    return /万|w|W/.test(raw) ? Math.round(value * 10000) : Math.round(value);
+  });
+  const baseLikes = numbers.find((num) => num > 50) ?? 180;
+  const baseComments = numbers.find((num) => num > 5 && num < baseLikes) ?? 18;
+
+  return unique.map((word, index) => ({
+    id: Date.now() + index,
+    word: word.replace(/[#｜|]/g, "").trim(),
+    category: guessTopicCategory(word),
+    likes: Math.max(60, Math.round(baseLikes * (1 - index * 0.07))),
+    comments: Math.max(6, Math.round(baseComments * (1 - index * 0.05))),
+    competitors: 10 + index * 3,
+    price: guessTopicPrice(word),
+    difficulty: guessTopicDifficulty(word),
+    note: "由小红书页面可见文本导入，建议再人工核验同类商品和版权风险"
+  }));
+}
+
+function guessTopicCategory(word: string) {
+  if (/高考|志愿|升学|专业|院校/.test(word)) return "升学资料";
+  if (/毕业|拍照|写真|朋友圈|文案/.test(word)) return "图片素材";
+  if (/期末|复习|学习|考试|错题/.test(word)) return "学习资料";
+  if (/旅行|旅游|攻略|行李|路线/.test(word)) return "旅游攻略";
+  if (/AI|提示词|文案|副业/.test(word)) return "AI工具";
+  if (/记账|预算|计划|表格/.test(word)) return "办公效率";
+  return "待验证热点";
+}
+
+function guessTopicPrice(word: string) {
+  if (/高考|志愿|AI|副业/.test(word)) return 19.9;
+  if (/旅行|攻略|毕业/.test(word)) return 12.9;
+  return 9.9;
+}
+
+function guessTopicDifficulty(word: string) {
+  if (/美甲|图片|素材|写真/.test(word)) return 4;
+  if (/高考|志愿|AI/.test(word)) return 3;
+  return 2;
+}
+
 function InputBox({
   label,
   value,
@@ -1088,6 +1308,65 @@ function HotTopicCard({
         <button onClick={onCreateProduct} className="rounded-md bg-ink px-3 py-2 text-sm text-white hover:bg-slate-800">
           生成商品
         </button>
+      </div>
+    </div>
+  );
+}
+
+function ProductCaseCard({
+  item,
+  onCreate
+}: {
+  item: (typeof productCases)[number];
+  onCreate: () => void;
+}) {
+  const copyText = [
+    `商品：${item.product}`,
+    `标题：${item.title}`,
+    `价格：${item.price}`,
+    `交付：${item.delivery}`,
+    `内容包：${item.package}`,
+    `小红书笔记标题：${item.noteTitle}`,
+    `风险提醒：${item.risk}`
+  ].join("\n");
+
+  const copy = () => {
+    void navigator.clipboard?.writeText(copyText);
+  };
+
+  return (
+    <div className="rounded-lg border border-line bg-white p-3">
+      <div className="grid grid-cols-[1fr_128px] gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <strong className="text-base">{item.product}</strong>
+            <Badge tone="blue">{item.topic}</Badge>
+            <Badge tone="green">{item.price}</Badge>
+          </div>
+          <div className="mt-2 rounded-md bg-slate-50 px-3 py-2 text-sm font-medium">{item.title}</div>
+        </div>
+        <div className="grid gap-2">
+          <button onClick={copy} className="rounded-md border border-line px-3 py-2 text-sm hover:bg-slate-50">
+            复制案例
+          </button>
+          <button onClick={onCreate} className="rounded-md bg-ink px-3 py-2 text-sm text-white hover:bg-slate-800">
+            生成商品
+          </button>
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-[1fr_1fr_1fr] gap-2 text-sm">
+        <div className="rounded-md border border-line p-3">
+          <div className="text-xs text-slate-500">内容包</div>
+          <div className="mt-1 leading-5">{item.package}</div>
+        </div>
+        <div className="rounded-md border border-line p-3">
+          <div className="text-xs text-slate-500">小红书笔记选题</div>
+          <div className="mt-1 leading-5">{item.noteTitle}</div>
+        </div>
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
+          <div className="text-xs text-amber-700">风险提醒</div>
+          <div className="mt-1 leading-5 text-amber-900">{item.risk}</div>
+        </div>
       </div>
     </div>
   );
