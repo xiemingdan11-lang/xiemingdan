@@ -7,7 +7,9 @@ import {
   CheckCircle2,
   ClipboardList,
   Database,
+  ExternalLink,
   FileText,
+  Flame,
   Home,
   Layers,
   LineChart,
@@ -20,6 +22,7 @@ import {
   Store,
   Tags,
   TrendingUp,
+  Wand2,
   WalletCards
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -78,6 +81,18 @@ type DailyMetric = {
 type SopRecord = {
   done: boolean;
   output: string;
+};
+
+type HotTopic = {
+  id: number;
+  word: string;
+  category: string;
+  likes: number;
+  comments: number;
+  competitors: number;
+  price: number;
+  difficulty: number;
+  note: string;
 };
 
 const initialKeywords: Keyword[] = [
@@ -197,6 +212,42 @@ const productSignals = [
   { name: "7天起号全流程资料", score: 48, revenue: 0, trend: "-6%", status: "先观察" }
 ];
 
+const initialHotTopics: HotTopic[] = [
+  {
+    id: 1,
+    word: "期末复习计划表",
+    category: "学习资料",
+    likes: 860,
+    comments: 74,
+    competitors: 18,
+    price: 9.9,
+    difficulty: 2,
+    note: "小红书大量学生党收藏，适合做可打印模板包"
+  },
+  {
+    id: 2,
+    word: "副业记账模板",
+    category: "办公效率",
+    likes: 620,
+    comments: 43,
+    competitors: 11,
+    price: 19.9,
+    difficulty: 2,
+    note: "用户愿意为省时间付费，可做 Excel/飞书双版本"
+  },
+  {
+    id: 3,
+    word: "美甲款式参考图",
+    category: "图片素材",
+    likes: 1200,
+    comments: 96,
+    competitors: 35,
+    price: 12.9,
+    difficulty: 4,
+    note: "热度高但素材版权和同质化风险更高"
+  }
+];
+
 const sop = [
   { title: "1 大课介绍", body: "理解项目结构，按找词、选品、上架、检测、发货推进", output: "写下项目闭环和今天主线", target: "overview" },
   { title: "2 店铺开通", body: "先开通基础店铺，闲管家后面再看", output: "记录店铺账号和开通状态", target: "listing" },
@@ -223,6 +274,7 @@ const initialSopRecords = sop.reduce<Record<number, SopRecord>>((records, _, ind
 const nav = [
   ["overview", "总览", Home],
   ["sop", "视频精华/SOP", BookOpen],
+  ["hotspot", "小红书热点选品", Flame],
   ["keywords", "关键词库", Search],
   ["screen", "筛词工作台", Tags],
   ["products", "商品库", Store],
@@ -274,11 +326,22 @@ function Panel({ title, icon: Icon, children, action }: { title: string; icon: t
 export default function HomePage() {
   const [tab, setTab] = useState<(typeof nav)[number][0]>("overview");
   const [keywords, setKeywords] = useLocalState("vp_keywords", initialKeywords);
-  const [products] = useLocalState("vp_products", initialProducts);
+  const [products, setProducts] = useLocalState("vp_products", initialProducts);
   const [tasks, setTasks] = useLocalState("vp_tasks", initialTasks);
   const [listings, setListings] = useLocalState("vp_listings", initialListings);
   const [sopRecords, setSopRecords] = useLocalState("vp_sop_records", initialSopRecords);
+  const [hotTopics, setHotTopics] = useLocalState("vp_hot_topics", initialHotTopics);
   const [newWord, setNewWord] = useState("");
+  const [hotForm, setHotForm] = useState({
+    word: "",
+    category: "学习资料",
+    likes: "100",
+    comments: "10",
+    competitors: "10",
+    price: "9.9",
+    difficulty: "2",
+    note: ""
+  });
 
   const dashboard = useMemo(() => {
     const doneTasks = tasks.filter((item) => item.done).length;
@@ -332,6 +395,62 @@ export default function HomePage() {
       ...keywords
     ]);
     setNewWord("");
+  };
+
+  const addHotTopic = () => {
+    if (!hotForm.word.trim()) return;
+    setHotTopics([
+      {
+        id: Date.now(),
+        word: hotForm.word.trim(),
+        category: hotForm.category.trim() || "待分类",
+        likes: Number(hotForm.likes) || 0,
+        comments: Number(hotForm.comments) || 0,
+        competitors: Number(hotForm.competitors) || 0,
+        price: Number(hotForm.price) || 0,
+        difficulty: Math.min(5, Math.max(1, Number(hotForm.difficulty) || 1)),
+        note: hotForm.note
+      },
+      ...hotTopics
+    ]);
+    setHotForm({ word: "", category: "学习资料", likes: "100", comments: "10", competitors: "10", price: "9.9", difficulty: "2", note: "" });
+  };
+
+  const addHotTopicToKeyword = (topic: HotTopic) => {
+    setKeywords([
+      {
+        id: Date.now(),
+        word: topic.word,
+        source: "小红书热点",
+        direction: topic.category,
+        price: `${topic.price}`,
+        payCount: topic.likes,
+        reviews: topic.comments,
+        keep: getHotScore(topic) >= 70,
+        note: topic.note
+      },
+      ...keywords
+    ]);
+  };
+
+  const createProductFromTopic = (topic: HotTopic) => {
+    const idea = getProductIdea(topic);
+    setProducts([
+      {
+        id: Date.now(),
+        name: idea.name,
+        keyword: topic.word,
+        platform: "淘宝/闲鱼",
+        title: idea.title,
+        price: topic.price || 9.9,
+        cover: "待做",
+        detail: "待做",
+        delivery: idea.delivery,
+        status: "选品草稿"
+      },
+      ...products
+    ]);
+    setTab("products");
   };
 
   return (
@@ -515,6 +634,70 @@ export default function HomePage() {
                         })
                       }
                       onOpen={() => setTab(step.target)}
+                    />
+                  ))}
+                </div>
+              </Panel>
+            </div>
+          )}
+
+          {tab === "hotspot" && (
+            <div className="grid gap-4">
+              <section className="rounded-lg border border-line bg-white p-4 shadow-panel">
+                <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+                  <div>
+                    <div className="flex items-center gap-2 text-sm font-semibold">
+                      <Flame className="h-4 w-4 text-rose-500" />
+                      小红书热点选品助手
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                      先把你在小红书看到的热点词、点赞、评论、同类商品数量填进来。系统会按热度、互动、竞争、制作难度和价格自动给出选品建议。
+                    </p>
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      <MetricCard label="热点词" value={hotTopics.length} hint="已收集" icon={Flame} tone="blue" />
+                      <MetricCard label="建议立刻做" value={hotTopics.filter((item) => getHotScore(item) >= 75).length} hint="高分方向" icon={Wand2} tone="green" />
+                      <MetricCard label="需避坑" value={hotTopics.filter((item) => item.difficulty >= 4).length} hint="版权/同质化风险" icon={ShieldAlert} tone="amber" />
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-line bg-slate-50 p-3">
+                    <div className="mb-3 flex items-center justify-between">
+                      <strong className="text-sm">新增热点词</strong>
+                      <a
+                        href="https://www.xiaohongshu.com/explore"
+                        target="_blank"
+                        className="inline-flex items-center gap-1 rounded-md border border-line bg-white px-2 py-1 text-xs hover:bg-slate-50"
+                      >
+                        打开小红书 <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <InputBox label="热点词" value={hotForm.word} onChange={(value) => setHotForm({ ...hotForm, word: value })} placeholder="例如：期末复习计划表" />
+                      <InputBox label="类目" value={hotForm.category} onChange={(value) => setHotForm({ ...hotForm, category: value })} />
+                      <InputBox label="点赞/收藏" value={hotForm.likes} onChange={(value) => setHotForm({ ...hotForm, likes: value })} />
+                      <InputBox label="评论" value={hotForm.comments} onChange={(value) => setHotForm({ ...hotForm, comments: value })} />
+                      <InputBox label="同类商品数" value={hotForm.competitors} onChange={(value) => setHotForm({ ...hotForm, competitors: value })} />
+                      <InputBox label="可卖价格" value={hotForm.price} onChange={(value) => setHotForm({ ...hotForm, price: value })} />
+                    </div>
+                    <div className="mt-2 grid grid-cols-[1fr_120px] gap-2">
+                      <InputBox label="备注" value={hotForm.note} onChange={(value) => setHotForm({ ...hotForm, note: value })} placeholder="看到的爆款形式、交付方式、风险点" />
+                      <InputBox label="难度 1-5" value={hotForm.difficulty} onChange={(value) => setHotForm({ ...hotForm, difficulty: value })} />
+                    </div>
+                    <button onClick={addHotTopic} className="mt-3 w-full rounded-md bg-ink px-3 py-2 text-sm text-white hover:bg-slate-800">
+                      <Plus className="inline h-4 w-4" /> 加入热点池
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+              <Panel title="热点词评分与选品建议" icon={Flame} action={<Badge tone="blue">按分数排序</Badge>}>
+                <div className="grid gap-3">
+                  {[...hotTopics].sort((a, b) => getHotScore(b) - getHotScore(a)).map((topic) => (
+                    <HotTopicCard
+                      key={topic.id}
+                      topic={topic}
+                      onAddKeyword={() => addHotTopicToKeyword(topic)}
+                      onCreateProduct={() => createProductFromTopic(topic)}
+                      onRemove={() => setHotTopics(hotTopics.filter((item) => item.id !== topic.id))}
                     />
                   ))}
                 </div>
@@ -791,6 +974,130 @@ function ProductSignalBoard() {
           <Badge tone={index === 0 ? "green" : "gray"}>{item.status}</Badge>
         </div>
       ))}
+    </div>
+  );
+}
+
+function getHotScore(topic: HotTopic) {
+  const heat = Math.min(35, Math.log10(topic.likes + 10) * 12);
+  const engagement = Math.min(25, Math.log10(topic.comments + 5) * 11);
+  const price = topic.price >= 9.9 ? 15 : topic.price >= 5 ? 9 : 4;
+  const competition = Math.max(0, 15 - topic.competitors * 0.45);
+  const difficulty = Math.max(0, 10 - topic.difficulty * 2);
+  return Math.round(heat + engagement + price + competition + difficulty);
+}
+
+function getHotDecision(score: number) {
+  if (score >= 75) return { label: "立刻做", tone: "green" as const, text: "热度、价格和竞争关系都不错，适合今天直接做草稿。" };
+  if (score >= 58) return { label: "继续观察", tone: "blue" as const, text: "有机会，但要先看同类商品标题、评价和交付难度。" };
+  return { label: "先放弃", tone: "amber" as const, text: "暂时不优先，可能是竞争太多、客单低或制作成本偏高。" };
+}
+
+function getProductIdea(topic: HotTopic) {
+  const suffix = topic.category.includes("图片") ? "素材包" : topic.category.includes("学习") ? "模板包" : "资料包";
+  return {
+    name: `${topic.word}${suffix}`,
+    title: `${topic.word}电子版${suffix} 可编辑可打印 即买即用`,
+    delivery: topic.category.includes("图片") ? "压缩包/网盘链接" : "PDF/Excel/网盘链接"
+  };
+}
+
+function InputBox({
+  label,
+  value,
+  onChange,
+  placeholder
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs text-slate-500">{label}</span>
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+      />
+    </label>
+  );
+}
+
+function HotTopicCard({
+  topic,
+  onAddKeyword,
+  onCreateProduct,
+  onRemove
+}: {
+  topic: HotTopic;
+  onAddKeyword: () => void;
+  onCreateProduct: () => void;
+  onRemove: () => void;
+}) {
+  const score = getHotScore(topic);
+  const decision = getHotDecision(score);
+  const idea = getProductIdea(topic);
+  const searchUrl = `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(topic.word)}`;
+
+  return (
+    <div className="rounded-lg border border-line bg-white p-3">
+      <div className="grid grid-cols-[1fr_90px_110px] gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <strong className="text-base">{topic.word}</strong>
+            <Badge tone="blue">{topic.category}</Badge>
+            <Badge tone={decision.tone}>{decision.label}</Badge>
+          </div>
+          <div className="mt-2 text-sm text-slate-600">{decision.text}</div>
+          <div className="mt-2 text-xs text-slate-500">{topic.note || "暂无备注"}</div>
+        </div>
+        <div className="rounded-md bg-slate-50 p-3 text-center">
+          <div className="text-xs text-slate-500">选品分</div>
+          <div className="mt-1 text-3xl font-semibold text-ink">{score}</div>
+        </div>
+        <div className="grid gap-2">
+          <a href={searchUrl} target="_blank" className="rounded-md border border-line px-3 py-2 text-center text-sm hover:bg-slate-50">
+            搜小红书
+          </a>
+          <button onClick={onRemove} className="rounded-md border border-line px-3 py-2 text-sm text-slate-500 hover:bg-slate-50">
+            移除
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-5 gap-2 text-sm">
+        <MiniStat label="点赞/收藏" value={topic.likes} />
+        <MiniStat label="评论" value={topic.comments} />
+        <MiniStat label="同类商品" value={topic.competitors} />
+        <MiniStat label="价格" value={`¥${topic.price}`} />
+        <MiniStat label="制作难度" value={`${topic.difficulty}/5`} />
+      </div>
+
+      <div className="mt-3 grid grid-cols-[1fr_120px_120px] items-center gap-3 rounded-md bg-slate-50 p-3">
+        <div className="text-sm">
+          <div className="font-medium">建议商品：{idea.name}</div>
+          <div className="mt-1 text-slate-600">{idea.title}</div>
+          <div className="mt-1 text-xs text-slate-500">交付：{idea.delivery}</div>
+        </div>
+        <button onClick={onAddKeyword} className="rounded-md border border-line bg-white px-3 py-2 text-sm hover:bg-slate-50">
+          加关键词
+        </button>
+        <button onClick={onCreateProduct} className="rounded-md bg-ink px-3 py-2 text-sm text-white hover:bg-slate-800">
+          生成商品
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-md border border-line bg-white px-3 py-2">
+      <div className="text-xs text-slate-500">{label}</div>
+      <div className="mt-1 font-semibold">{value}</div>
     </div>
   );
 }
