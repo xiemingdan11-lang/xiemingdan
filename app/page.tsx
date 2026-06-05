@@ -482,6 +482,19 @@ export default function Home() {
     }
   };
 
+  const addOriginalDetailImages = async (product: Product, files: FileList) => {
+    try {
+      const images = await Promise.all(Array.from(files).map(readImageFile));
+      updateProduct(product.id, {
+        detailImages: [...(product.detailImages || []), ...images],
+        listingStatus: '待改图',
+      });
+      showToast(`已补充 ${images.length} 张原始详情图`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '图片上传失败', 'error');
+    }
+  };
+
   const optimizeTitle = async (product: Product) => {
     setOptimizingId(product.id);
     try {
@@ -729,6 +742,7 @@ export default function Home() {
                 optimizing={selectedProduct ? optimizingId === selectedProduct.id : false}
                 onProcessedMain={setProcessedMainImage}
                 onProcessedDetails={addProcessedDetailImages}
+                onOriginalDetails={addOriginalDetailImages}
                 onUpdate={updateProduct}
                 onUploadMain={uploadMainToGitHub}
                 onUploadDetails={uploadDetailsToGitHub}
@@ -946,6 +960,7 @@ function ProductInspector({
   onOptimize,
   onProcessedMain,
   onProcessedDetails,
+  onOriginalDetails,
   onUploadMain,
   onUploadDetails,
   onCopyListing,
@@ -956,6 +971,7 @@ function ProductInspector({
   onOptimize: (product: Product) => void;
   onProcessedMain: (product: Product, file: File) => void;
   onProcessedDetails: (product: Product, files: FileList) => void;
+  onOriginalDetails: (product: Product, files: FileList) => void;
   onUpdate: (id: number, patch: Partial<Product>) => void;
   onUploadMain: (product: Product) => void;
   onUploadDetails: (product: Product) => void;
@@ -1036,6 +1052,28 @@ function ProductInspector({
           </div>
         </div>
       )}
+      <div className="mt-5 rounded-3xl bg-[#f6f9ff] p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="text-sm font-black">原始详情图</div>
+          {product.detailImages && product.detailImages.length > 0 && (
+            <button onClick={() => navigator.clipboard.writeText((product.detailImages || []).join('\n'))} className="text-xs font-bold text-[#2f6fe4]">复制全部链接</button>
+          )}
+        </div>
+        <label className="mb-3 flex h-10 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white text-sm font-black text-[#2f6fe4] ring-1 ring-[#dbe8fb]">
+          <Upload size={16} />
+          补充原始详情图
+          <input type="file" accept="image/*" multiple className="hidden" onChange={e => e.target.files && onOriginalDetails(product, e.target.files)} />
+        </label>
+        {product.detailImages && product.detailImages.length > 0 ? (
+          <div className="grid grid-cols-3 gap-2">
+            {product.detailImages.slice(0, 9).map(image => <img key={image} src={image} alt="" className="aspect-square rounded-2xl object-cover" />)}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-[#dbe8fb] bg-white px-3 py-4 text-center text-xs font-bold leading-5 text-[#98a2b3]">
+            淘宝导出插件没有带出详情图时，可以在这里手动补充。
+          </div>
+        )}
+      </div>
       <button onClick={() => onOptimize(product)} disabled={optimizing} className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#2f6fe4] text-sm font-black text-white disabled:opacity-60">
         {optimizing ? <Loader2 className="animate-spin" size={18} /> : <Wand2 size={18} />}
         AI 优化淘宝标题
