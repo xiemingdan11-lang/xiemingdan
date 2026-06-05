@@ -27,3 +27,9 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #484f58;
 }
+
+@layer components {
+  .field-input {
+    @apply h-11 w-full rounded-[8px] border border-[#d9e5f8] bg-[#fbfdff] px-3 text-sm text-[#172033] outline-none transition focus:border-[#2f6fe4] focus:ring-2 focus:ring-[#b8d3ff];
+  }
+}
