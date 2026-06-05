@@ -62,6 +62,8 @@ interface TrendsData {
 }
 
 const STORAGE_KEY = 'xuanpin_products';
+const MAX_LOCAL_IMAGE_MB = 10;
+const MAX_LOCAL_IMAGE_BYTES = MAX_LOCAL_IMAGE_MB * 1024 * 1024;
 
 function loadProducts(): Product[] {
   try {
@@ -310,8 +312,8 @@ export default function Home() {
       showToast('请选择图片文件', 'error');
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      showToast('图片不能超过 2MB，避免浏览器存储爆满', 'error');
+    if (file.size > MAX_LOCAL_IMAGE_BYTES) {
+      showToast(`图片不能超过 ${MAX_LOCAL_IMAGE_MB}MB`, 'error');
       return;
     }
     const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -326,7 +328,7 @@ export default function Home() {
 
   const readImageFile = async (file: File) => {
     if (!file.type.startsWith('image/')) throw new Error('请选择图片文件');
-    if (file.size > 2 * 1024 * 1024) throw new Error('图片不能超过 2MB');
+    if (file.size > MAX_LOCAL_IMAGE_BYTES) throw new Error(`图片不能超过 ${MAX_LOCAL_IMAGE_MB}MB`);
     return new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result || ''));
