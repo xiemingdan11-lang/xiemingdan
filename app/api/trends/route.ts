@@ -12,6 +12,53 @@ const HEADERS = {
 
 const LIMIT = 50;
 
+function normalizeRsHubItem(item: Record<string, unknown>, index: number) {
+  const title = (item.title || item.name || '') as string;
+  const hotValue = item.hot ?? item.hot_value ?? item.total_box ?? item.rate ?? '';
+  return {
+    rank: Number(item.rank) || index + 1,
+    title,
+    hotValue: String(hotValue || ''),
+    url: (item.url || item.link || `https://www.baidu.com/s?wd=${encodeURIComponent(title)}`) as string,
+  };
+}
+
+// ===== RSHub 聚合热榜 =====
+async function scrapeRsHub() {
+  try {
+    const res = await fetch('https://www.rshub.site/', {
+      headers: HEADERS,
+      signal: AbortSignal.timeout(12000),
+    });
+    const html = await res.text();
+    const match = html.match(/<script id="__NEXT_DATA__" type="application\/json">(.*?)<\/script>/);
+    if (!match?.[1]) return {};
+
+    const nextData = JSON.parse(match[1]) as {
+      props?: { pageProps?: { initialHotData?: Record<string, { source?: string; data?: Array<Record<string, unknown>> }> } };
+    };
+    const hotData = nextData.props?.pageProps?.initialHotData || {};
+    const result: Record<string, unknown> = {};
+
+    Object.values(hotData).forEach(board => {
+      const source = board.source;
+      const items = board.data || [];
+      if (!source || items.length === 0) return;
+
+      const normalized = items
+        .slice(0, LIMIT)
+        .map(normalizeRsHubItem)
+        .filter(item => item.title);
+
+      if (normalized.length > 0) result[source] = normalized;
+    });
+
+    return result;
+  } catch {
+    return {};
+  }
+}
+
 // ===== 微博热搜 =====
 async function scrapeWeibo() {
   try {
@@ -142,6 +189,15 @@ async function scrapeDouyin() {
 
 // ===== 汇总 =====
 async function fetchAllTrends() {
+  const rsHubData = await scrapeRsHub();
+  if (Object.keys(rsHubData).length > 0) {
+    return {
+      _updatedAt: new Date().toLocaleString('zh-CN'),
+      _source: 'RSHub',
+      ...rsHubData,
+    };
+  }
+
   const [weibo, baidu, toutiao, douyin, bilibili, zhihu] = await Promise.allSettled([
     scrapeWeibo(),
     scrapeBaidu(),

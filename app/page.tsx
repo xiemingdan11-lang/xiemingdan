@@ -216,6 +216,7 @@ export default function Home() {
   const trendsEntries = Object.entries(trends).filter(
     (entry): entry is [string, TrendItem[]] => Array.isArray(entry[1])
   );
+  const trendSource = typeof trends._source === 'string' ? trends._source : '直连平台';
 
   const stats = [
     { label: '全部', value: products.length },
@@ -232,18 +233,21 @@ export default function Home() {
         <div className="absolute bottom-[-160px] left-1/3 h-[360px] w-[560px] rounded-full bg-[#b7f0ff]/45 blur-3xl" />
       </div>
 
-      <div className="relative mx-auto max-w-7xl px-5 py-8 sm:px-8">
+      <div className="relative mx-auto w-full max-w-[1760px] px-4 py-6 sm:px-6 xl:px-8">
         <section className="mb-8">
           <div className="mb-4 inline-flex rounded-[8px] bg-[#dbe9ff] px-4 py-2 text-sm font-semibold text-[#3b79df] shadow-sm">
-            设计分享
+            热点选品工作台
           </div>
-          <h1 className="text-5xl font-black tracking-normal text-[#101828] sm:text-6xl">
-            <span className="text-[#2f80ed]">AI界面</span>-WEB端
+          <h1 className="text-4xl font-black tracking-normal text-[#101828] sm:text-6xl">
+            <span className="text-[#2f80ed]">跨境</span>选品助手
           </h1>
+          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-[#667085]">
+            聚合全网热点，快速发现适合延伸成教程、素材、模板、工具和知识付费产品的选题。
+          </p>
         </section>
 
         <section className="overflow-hidden rounded-[8px] border border-white/70 bg-white/78 shadow-[0_24px_80px_rgba(80,120,190,0.25)] backdrop-blur-xl">
-          <div className="flex min-h-[720px]">
+          <div className="flex min-h-[760px]">
             <aside className="hidden w-52 border-r border-[#e8eef8] bg-white/72 p-4 lg:block">
               <div className="mb-8 flex items-center gap-2">
                 <div className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-gradient-to-br from-[#4f8cff] to-[#8c6dff] text-white">
@@ -470,7 +474,7 @@ export default function Home() {
                           </div>
                           <div>
                             <h2 className="text-2xl font-black">实时热榜</h2>
-                            <p className="mt-1 text-xs text-[#667085]">已扩展到微博、百度、头条、抖音、B站、知乎。点击词条可直接进行 AI 分析。</p>
+                            <p className="mt-1 text-xs text-[#667085]">已接入 {trendSource} 聚合热榜。点击词条可直接进行 AI 分析。</p>
                           </div>
                         </div>
                         <button onClick={() => loadTrends(true)} disabled={trendsLoading} className="flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#f0f5ff] px-4 text-sm font-semibold text-[#2f6fe4] disabled:opacity-50">
@@ -484,27 +488,29 @@ export default function Home() {
                           加载热榜数据中
                         </div>
                       ) : trendsEntries.length > 0 ? (
-                        <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-3">
+                        <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-3 min-[1680px]:grid-cols-4">
                           {trendsEntries.map(([platform, items]) => (
-                            <div key={platform} className="rounded-[8px] border border-[#e6edf8] bg-[#fbfdff] p-4">
-                              <div className="mb-4 flex items-center justify-between">
+                            <div key={platform} className="overflow-hidden rounded-[8px] border border-[#dfe8f6] bg-white shadow-sm">
+                              <div className="flex items-center justify-between border-b border-[#edf2fa] bg-gradient-to-r from-[#f8fbff] to-white px-4 py-3">
                                 <div>
                                   <h3 className="text-lg font-black">{platform}</h3>
-                                  <p className="mt-0.5 text-xs text-[#98a2b3]">最多显示 {items.length} 条热点</p>
+                                  <p className="mt-0.5 text-xs text-[#98a2b3]">点击任意热词生成选品建议</p>
                                 </div>
                                 <span className="rounded-full bg-[#eef4ff] px-3 py-1 text-xs font-semibold text-[#2f6fe4]">{items.length} 条</span>
                               </div>
-                              <div className="max-h-[620px] space-y-2 overflow-y-auto pr-1">
+                              <div className="max-h-[680px] overflow-y-auto">
                                 {items.map(item => (
-                                  <button key={`${platform}-${item.rank}`} onClick={() => doAnalyze(item.title)} className="flex min-h-[72px] w-full items-center gap-3 rounded-[8px] bg-white p-3 text-left shadow-sm transition hover:bg-[#f5f8ff] hover:shadow-md">
-                                    <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-black ${item.rank <= 3 ? 'bg-[#2f6fe4] text-white' : 'bg-[#eef2f8] text-[#667085]'}`}>
+                                  <button key={`${platform}-${item.rank}`} onClick={() => doAnalyze(item.title)} className="group flex min-h-[64px] w-full items-center gap-3 border-b border-[#f0f4f9] px-4 py-3 text-left transition last:border-b-0 hover:bg-[#f7faff]">
+                                    <span className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[8px] text-sm font-black ${item.rank <= 3 ? 'bg-[#2f6fe4] text-white' : 'bg-[#eef2f8] text-[#667085]'}`}>
                                       {item.rank}
                                     </span>
                                     <span className="min-w-0 flex-1">
-                                      <span className="line-clamp-2 text-sm font-semibold leading-snug">{item.title}</span>
+                                      <span className="line-clamp-2 text-sm font-semibold leading-snug text-[#182230]">{item.title}</span>
                                       {item.hotValue && <span className="mt-1 block text-xs text-[#98a2b3]">{formatHot(item.hotValue)}</span>}
                                     </span>
-                                    <Bot size={16} className="flex-shrink-0 text-[#2f6fe4]" />
+                                    <span className="flex-shrink-0 rounded-full bg-[#eef4ff] px-2 py-1 text-[11px] font-semibold text-[#2f6fe4] opacity-0 transition group-hover:opacity-100">
+                                      AI
+                                    </span>
                                   </button>
                                 ))}
                               </div>
