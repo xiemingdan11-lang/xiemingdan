@@ -95,6 +95,7 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [optimizingId, setOptimizingId] = useState<number | null>(null);
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [form, setForm] = useState<Omit<Product, 'id' | 'createdAt'>>({
     name: '',
     url: '',
@@ -366,7 +367,7 @@ export default function Home() {
     if (!url) return;
     updateProduct(product.id, { githubMainImage: url });
     await navigator.clipboard.writeText(url);
-    showToast('主图已上传 GitHub，链接已复制');
+    showToast('主图 GPT 链接已生成并复制');
   };
 
   const uploadDetailsToGitHub = async (product: Product) => {
@@ -383,7 +384,7 @@ export default function Home() {
     if (uploaded.length === 0) return;
     updateProduct(product.id, { githubDetailImages: [...(product.githubDetailImages || []), ...uploaded] });
     await navigator.clipboard.writeText(uploaded.join('\n'));
-    showToast(`已上传 ${uploaded.length} 张详情图，链接已复制`);
+    showToast(`已生成 ${uploaded.length} 张详情图 GPT 链接`);
   };
 
   const copyListingInfo = async (product: Product) => {
@@ -507,7 +508,28 @@ export default function Home() {
     const next = products.filter(p => p.id !== id);
     persistProducts(next);
     setSelectedProductId(next[0]?.id || null);
+    setSelectedIds(ids => ids.filter(item => item !== id));
     showToast('已删除');
+  };
+
+  const toggleSelectProduct = (id: number) => {
+    setSelectedIds(ids => ids.includes(id) ? ids.filter(item => item !== id) : [...ids, id]);
+  };
+
+  const toggleSelectFiltered = () => {
+    const filteredIds = filteredProducts.map(product => product.id);
+    const allSelected = filteredIds.length > 0 && filteredIds.every(id => selectedIds.includes(id));
+    setSelectedIds(allSelected ? selectedIds.filter(id => !filteredIds.includes(id)) : [...new Set([...selectedIds, ...filteredIds])]);
+  };
+
+  const deleteSelectedProducts = () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`确定删除已选的 ${selectedIds.length} 条选品吗？`)) return;
+    const next = products.filter(product => !selectedIds.includes(product.id));
+    persistProducts(next);
+    setSelectedProductId(next[0]?.id || null);
+    setSelectedIds([]);
+    showToast(`已删除 ${selectedIds.length} 条选品`);
   };
 
   const quickStatus = (id: number, status: ProductStatus) => {
@@ -661,14 +683,29 @@ export default function Home() {
                     <FilterSelect value={filterStatus} onChange={setFilterStatus} options={['考虑中', '已选', '已放弃']} placeholder="全部状态" />
                     <FilterSelect value={filterCategory} onChange={setFilterCategory} options={categories} placeholder="全部分类" />
                   </div>
+                  <div className="mb-4 flex flex-col gap-3 rounded-3xl bg-[#f6f9ff] p-3 md:flex-row md:items-center md:justify-between">
+                    <div className="text-sm font-bold text-[#667085]">
+                      当前显示 {filteredProducts.length} 条，已选择 {selectedIds.length} 条
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={toggleSelectFiltered} className="rounded-2xl bg-white px-4 py-2 text-sm font-black text-[#2f6fe4] ring-1 ring-[#dbe8fb]">
+                        {filteredProducts.length > 0 && filteredProducts.every(product => selectedIds.includes(product.id)) ? '取消全选' : '全选当前'}
+                      </button>
+                      <button onClick={deleteSelectedProducts} disabled={selectedIds.length === 0} className="rounded-2xl bg-rose-50 px-4 py-2 text-sm font-black text-rose-600 disabled:opacity-40">
+                        批量删除
+                      </button>
+                    </div>
+                  </div>
                   <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
                     {filteredProducts.map(product => (
                       <ProductCard
                         key={product.id}
                         product={product}
                         active={selectedProduct?.id === product.id}
+                        checked={selectedIds.includes(product.id)}
                         optimizing={optimizingId === product.id}
                         onSelect={() => setSelectedProductId(product.id)}
+                        onToggleSelect={() => toggleSelectProduct(product.id)}
                         onEdit={() => openEditModal(product)}
                         onDelete={() => deleteProduct(product.id)}
                         onOptimize={() => optimizeTitle(product)}
@@ -858,11 +895,13 @@ function FilterSelect({ value, onChange, options, placeholder }: { value: string
   );
 }
 
-function ProductCard({ product, active, optimizing, onSelect, onEdit, onDelete, onOptimize, onStatus }: {
+function ProductCard({ product, active, checked, optimizing, onSelect, onToggleSelect, onEdit, onDelete, onOptimize, onStatus }: {
   product: Product;
   active: boolean;
+  checked: boolean;
   optimizing: boolean;
   onSelect: () => void;
+  onToggleSelect: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onOptimize: () => void;
@@ -871,6 +910,9 @@ function ProductCard({ product, active, optimizing, onSelect, onEdit, onDelete, 
   return (
     <article onClick={onSelect} className={`cursor-pointer overflow-hidden rounded-[24px] border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg ${active ? 'border-[#2f6fe4] ring-4 ring-blue-100' : 'border-[#e5edfb]'}`}>
       <div className="relative h-44 bg-[#eef4ff]">
+        <label onClick={e => e.stopPropagation()} className="absolute right-3 top-3 z-10 flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-white/90 shadow-sm">
+          <input type="checkbox" checked={checked} onChange={onToggleSelect} className="h-4 w-4 accent-[#2f6fe4]" />
+        </label>
         {product.imageUrl ? <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-[#98a2b3]"><ImageIcon size={36} /></div>}
         <span className={`absolute left-3 top-3 rounded-full px-3 py-1 text-xs font-bold ring-1 ${statusStyles[product.status]}`}>{product.status}</span>
       </div>
@@ -947,15 +989,15 @@ function ProductInspector({
         </button>
       </div>
       <div className="mt-5 rounded-3xl bg-[#eef4ff] p-4">
-        <div className="mb-3 text-sm font-black">GitHub 原图链接</div>
+        <div className="mb-3 text-sm font-black">GPT 原图链接</div>
         <div className="grid gap-2">
           <button onClick={() => onUploadMain(product)} className="flex h-10 items-center justify-center gap-2 rounded-2xl bg-[#2f6fe4] text-sm font-black text-white">
             <Upload size={16} />
-            上传主图到 GitHub
+            上传主图给 GPT
           </button>
           <button onClick={() => onUploadDetails(product)} className="flex h-10 items-center justify-center gap-2 rounded-2xl bg-white text-sm font-black text-[#2f6fe4] ring-1 ring-[#dbe8fb]">
             <Upload size={16} />
-            上传详情图到 GitHub
+            上传详情图给 GPT
           </button>
         </div>
         {product.githubMainImage && (
