@@ -1,1948 +1,480 @@
-"use client";
+'use client';
 
-import {
-  Activity,
-  BarChart3,
-  BookOpen,
-  CheckCircle2,
-  ClipboardList,
-  Database,
-  ExternalLink,
-  FileText,
-  Flame,
-  Globe2,
-  Home,
-  Layers,
-  LineChart,
-  Plus,
-  Rocket,
-  Search,
-  Settings2,
-  ShieldAlert,
-  Sparkles,
-  Store,
-  Tags,
-  TrendingUp,
-  Wand2,
-  WalletCards
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState, useCallback } from 'react';
 
-type Keyword = {
-  id: number;
-  word: string;
-  source: string;
-  direction: string;
-  price: string;
-  payCount: number;
-  reviews: number;
-  keep: boolean;
-  note: string;
-};
+// ==================== 类型定义 ====================
 
-type Product = {
+type ProductStatus = '考虑中' | '已选' | '已放弃';
+
+interface Product {
   id: number;
   name: string;
-  keyword: string;
-  platform: string;
-  title: string;
-  price: number;
-  cover: string;
-  detail: string;
-  delivery: string;
-  status: string;
-};
-
-type Task = {
-  id: number;
-  text: string;
-  done: boolean;
-};
-
-type Listing = {
-  id: number;
-  product: string;
-  taobao: boolean;
-  xianyu: boolean;
-  checked: boolean;
-  maintained: boolean;
-  cleaned: boolean;
-};
-
-type DailyMetric = {
-  date: string;
-  exposure: number;
-  visitors: number;
-  consults: number;
-  orders: number;
-  revenue: number;
-};
-
-type SopRecord = {
-  done: boolean;
-  output: string;
-};
-
-type HotTopic = {
-  id: number;
-  word: string;
-  category: string;
-  likes: number;
-  comments: number;
-  competitors: number;
-  price: number;
-  difficulty: number;
-  note: string;
-};
-
-type TrendTopic = {
-  id: number;
-  source: string;
-  hotword: string;
-  scene: string;
-  audience: string;
-  productType: string;
-  deliverables: string;
-  title: string;
+  url: string;
   price: string;
-  materialPlan: string;
-  risk: string;
-  priority: number;
-};
-
-const initialKeywords: Keyword[] = [
-  {
-    id: 1,
-    word: "PPT教学能力大赛模板",
-    source: "闲鱼",
-    direction: "办公资料",
-    price: "18.8-39",
-    payCount: 65,
-    reviews: 12,
-    keep: true,
-    note: "视频第7节示例，先看付款和评价"
-  },
-  {
-    id: 2,
-    word: "小红书美甲图片模板",
-    source: "小红书",
-    direction: "图片素材",
-    price: "9.9-29.9",
-    payCount: 41,
-    reviews: 8,
-    keep: true,
-    note: "反向选品，检查是否能做出交付"
-  },
-  {
-    id: 3,
-    word: "7天起号全流程",
-    source: "淘宝",
-    direction: "教程资料",
-    price: "19.9-59",
-    payCount: 22,
-    reviews: 5,
-    keep: false,
-    note: "待看同行数据"
-  }
-];
-
-const initialProducts: Product[] = [
-  {
-    id: 1,
-    name: "PPT教学能力大赛模板包",
-    keyword: "PPT教学能力大赛模板",
-    platform: "淘宝/闲鱼",
-    title: "PPT教学能力大赛模板教学设计说课课件电子版",
-    price: 18.8,
-    cover: "待做",
-    detail: "待做",
-    delivery: "网盘链接",
-    status: "准备中"
-  },
-  {
-    id: 2,
-    name: "美甲图片参考素材包",
-    keyword: "小红书美甲图片模板",
-    platform: "闲鱼",
-    title: "整理了一套美甲图片参考模板可做款式灵感",
-    price: 9.9,
-    cover: "已做",
-    detail: "待做",
-    delivery: "网盘链接",
-    status: "待上架"
-  }
-];
-
-const initialTasks: Task[] = [
-  { id: 1, text: "找词 20 个", done: false },
-  { id: 2, text: "筛词 10 个", done: false },
-  { id: 3, text: "做标题 3 个", done: false },
-  { id: 4, text: "做主图 1 个", done: false },
-  { id: 5, text: "淘宝上架", done: false },
-  { id: 6, text: "闲鱼上架", done: false },
-  { id: 7, text: "淘宝商品检测提交", done: false },
-  { id: 8, text: "日常维护/清理商品", done: false }
-];
-
-const initialListings: Listing[] = [
-  {
-    id: 1,
-    product: "PPT教学能力大赛模板包",
-    taobao: false,
-    xianyu: true,
-    checked: false,
-    maintained: false,
-    cleaned: false
-  },
-  {
-    id: 2,
-    product: "美甲图片参考素材包",
-    taobao: false,
-    xianyu: false,
-    checked: false,
-    maintained: false,
-    cleaned: false
-  }
-];
-
-const dailyMetrics: DailyMetric[] = [
-  { date: "5/29", exposure: 58, visitors: 8, consults: 1, orders: 0, revenue: 0 },
-  { date: "5/30", exposure: 84, visitors: 12, consults: 2, orders: 0, revenue: 0 },
-  { date: "5/31", exposure: 126, visitors: 21, consults: 3, orders: 1, revenue: 18.8 },
-  { date: "6/1", exposure: 152, visitors: 28, consults: 4, orders: 1, revenue: 18.8 },
-  { date: "6/2", exposure: 181, visitors: 33, consults: 5, orders: 2, revenue: 37.6 },
-  { date: "6/3", exposure: 216, visitors: 41, consults: 7, orders: 2, revenue: 56.4 },
-  { date: "6/4", exposure: 248, visitors: 48, consults: 8, orders: 3, revenue: 75.2 }
-];
-
-const channelMetrics = [
-  { name: "淘宝", exposure: 426, consults: 9, orders: 3, color: "bg-blue-500" },
-  { name: "闲鱼", exposure: 391, consults: 14, orders: 4, color: "bg-emerald-500" },
-  { name: "小红书", exposure: 248, consults: 7, orders: 2, color: "bg-rose-500" }
-];
-
-const productSignals = [
-  { name: "PPT教学能力大赛模板包", score: 86, revenue: 169.2, trend: "+24%", status: "重点推" },
-  { name: "美甲图片参考素材包", score: 72, revenue: 89.1, trend: "+11%", status: "继续测" },
-  { name: "7天起号全流程资料", score: 48, revenue: 0, trend: "-6%", status: "先观察" }
-];
-
-const initialHotTopics: HotTopic[] = [
-  {
-    id: 1,
-    word: "2026高考志愿填报清单",
-    category: "升学资料",
-    likes: 1480,
-    comments: 126,
-    competitors: 24,
-    price: 19.9,
-    difficulty: 3,
-    note: "6月强节点，适合做家长向清单、专业避坑表、志愿填报时间轴"
-  },
-  {
-    id: 2,
-    word: "毕业季拍照姿势模板",
-    category: "图片素材",
-    likes: 980,
-    comments: 88,
-    competitors: 22,
-    price: 12.9,
-    difficulty: 2,
-    note: "毕业季节点，适合做拍照姿势参考、朋友圈文案、九宫格模板"
-  },
-  {
-    id: 3,
-    word: "期末复习计划表",
-    category: "学习资料",
-    likes: 860,
-    comments: 74,
-    competitors: 18,
-    price: 9.9,
-    difficulty: 2,
-    note: "小红书大量学生党收藏，适合做可打印模板包"
-  },
-  {
-    id: 4,
-    word: "暑假旅行攻略模板",
-    category: "旅游攻略",
-    likes: 740,
-    comments: 53,
-    competitors: 19,
-    price: 16.9,
-    difficulty: 2,
-    note: "暑假前置需求，适合做城市攻略、行李清单、预算表"
-  },
-  {
-    id: 5,
-    word: "副业记账模板",
-    category: "办公效率",
-    likes: 620,
-    comments: 43,
-    competitors: 11,
-    price: 19.9,
-    difficulty: 2,
-    note: "用户愿意为省时间付费，可做 Excel/飞书双版本"
-  },
-  {
-    id: 6,
-    word: "AI小红书爆款文案提示词",
-    category: "AI工具",
-    likes: 690,
-    comments: 61,
-    competitors: 28,
-    price: 29.9,
-    difficulty: 3,
-    note: "AI提效内容仍有搜索需求，适合做提示词包和案例拆解"
-  }
-];
-
-const productCases = [
-  {
-    topic: "2026高考志愿填报清单",
-    product: "2026高考志愿填报资料包",
-    title: "2026高考志愿填报清单Excel专业避坑表时间轴家长版电子资料",
-    price: "19.9-39.9",
-    package: "志愿填报流程图、专业避坑表、院校对比表、时间节点清单、家长沟通话术",
-    delivery: "Excel + PDF + 网盘链接",
-    noteTitle: "高考后别乱填志愿，家长先把这5张表准备好",
-    risk: "不能承诺录取结果，文案写辅助工具，不写保录取"
-  },
-  {
-    topic: "毕业季拍照姿势模板",
-    product: "毕业季拍照姿势与文案模板包",
-    title: "毕业季拍照姿势参考图朋友圈文案九宫格排版模板电子版",
-    price: "9.9-19.9",
-    package: "姿势参考、构图示例、朋友圈文案、九宫格排版、宿舍/操场/教室场景清单",
-    delivery: "PDF + 图片参考包",
-    noteTitle: "毕业照不会摆姿势，照着这套清单拍就够了",
-    risk: "参考图注意版权，优先用自制示意图或AI生成图"
-  },
-  {
-    topic: "期末复习计划表",
-    product: "期末复习计划表模板包",
-    title: "期末复习计划表可打印每日打卡错题整理电子版模板",
-    price: "6.9-12.9",
-    package: "7天计划表、14天计划表、错题整理表、背诵打卡表、考试倒计时表",
-    delivery: "PDF + Excel",
-    noteTitle: "期末前两周这样安排，复习不乱套",
-    risk: "不要写提分承诺，写计划工具和自律模板"
-  },
-  {
-    topic: "暑假旅行攻略模板",
-    product: "暑假旅行攻略计划表",
-    title: "暑假旅行攻略模板行李清单预算表路线规划亲子情侣通用电子版",
-    price: "9.9-19.9",
-    package: "行李清单、预算表、路线规划、拍照机位表、避坑清单",
-    delivery: "Excel + PDF",
-    noteTitle: "暑假出门前，把这张旅行计划表填完",
-    risk: "城市攻略要避免搬运原图，路线信息要标注需自行核验"
-  },
-  {
-    topic: "AI小红书爆款文案提示词",
-    product: "小红书AI文案提示词案例包",
-    title: "AI小红书爆款文案提示词副业学习美业探店通用模板案例包",
-    price: "19.9-49.9",
-    package: "标题公式、正文结构、评论引导、20个行业提示词、10个改写案例",
-    delivery: "Word + 飞书文档",
-    noteTitle: "不会写小红书？把这套AI提示词直接套进去",
-    risk: "提示词不能保证爆款，文案写提效模板，不写必火"
-  }
-];
-
-const researchSources = [
-  "公开资料显示，小红书搜索与长尾关键词仍是普通账号的重要流量入口。",
-  "2026年6月节点适合优先围绕高考、毕业、期末、暑假、旅行、AI提效做虚拟资料测试。",
-  "商品案例按可交付、可复制、低售后、低版权风险优先排序。"
-];
-
-const liveResearchFindings = [
-  {
-    direction: "高考志愿填报",
-    xhsSignals: "小红书出现：高考志愿填报清单电子版、高考志愿表电子版模板、广东高考志愿表pdf下载、志愿填报五步法。",
-    shopSignals: "电商侧出现：高考志愿填报数据、录取分数线、投档线、专业分数电子版，价格低至几元起。",
-    decision: "可做",
-    product: "2026高考志愿填报清单 + 院校对比表 + 专业避坑表",
-    priority: 95
-  },
-  {
-    direction: "毕业季拍照",
-    xhsSignals: "小红书出现：毕业季剪映模板、拍照参考模板、毕业季照片排版、学士服万能拍照姿势、9个场景81个姿势。",
-    shopSignals: "电商侧素材站有毕业拍照姿势、毕业照人物素材、拍照模板等案例，但版权风险较高。",
-    decision: "谨慎做",
-    product: "毕业季拍照姿势清单 + 朋友圈文案 + 自制九宫格排版",
-    priority: 72
-  },
-  {
-    direction: "期末复习计划表",
-    xhsSignals: "小红书出现：电子版、可打印、期末学习计划表模板、各年级期末复习计划表、三轮复习法。",
-    shopSignals: "电商侧出现：Excel模板、Word模板、期末复习计划表、小学初中高中通用模板。",
-    decision: "可做",
-    product: "期末复习计划表 + 错题整理表 + 背诵打卡表",
-    priority: 88
-  },
-  {
-    direction: "暑假旅行攻略",
-    xhsSignals: "小红书出现：旅行excel模板、旅行行程表模板、暑假旅行攻略电子版、行李清单、暑期旅游计划模板。",
-    shopSignals: "电商侧出现：旅行计划Excel表、行程/清单/预算模板、自驾游规划自动化表格。",
-    decision: "可做",
-    product: "暑假旅行攻略Excel + 行李清单 + 预算表 + 路线规划表",
-    priority: 82
-  },
-  {
-    direction: "AI小红书文案提示词",
-    xhsSignals: "小红书出现：小红书AI提示词大全、AI图文提示词、DeepSeek小红书文案指令、复制可用提示词。",
-    shopSignals: "电商侧出现：AI提示词资料包、AI带货提示词、AI文案教程和小服务案例。",
-    decision: "可做",
-    product: "小红书AI文案提示词包 + 行业案例 + 改写模板",
-    priority: 86
-  }
-];
-
-const initialTrendTopics: TrendTopic[] = [
-  {
-    id: 1,
-    source: "百度/知乎/小红书",
-    hotword: "高考志愿填报",
-    scene: "6月高考后强需求",
-    audience: "高三家长、考生",
-    productType: "教程 + 表格模板",
-    deliverables: "志愿填报流程图、院校对比表、专业避坑清单、一分一段记录表、家长沟通话术",
-    title: "2026高考志愿填报清单专业避坑表院校对比Excel电子版",
-    price: "19.9-39.9",
-    materialPlan: "搜集各省志愿规则、公开一分一段表、专业介绍，整理成Excel和PDF，不承诺录取结果。",
-    risk: "不能写保录取、内部数据、官方预测；只做辅助工具。",
-    priority: 96
-  },
-  {
-    id: 2,
-    source: "微博/小红书/抖音",
-    hotword: "毕业季拍照",
-    scene: "毕业季节点",
-    audience: "大学生、高中生、摄影约拍用户",
-    productType: "教程 + 素材清单",
-    deliverables: "单人姿势、多人合照、教室操场场景、朋友圈文案、九宫格排版模板",
-    title: "毕业季拍照姿势大全朋友圈文案九宫格排版模板电子版",
-    price: "9.9-19.9",
-    materialPlan: "自己整理姿势示意图、AI生成示意图、收集无版权排版灵感，做PDF手册。",
-    risk: "不要搬运摄影师原图；参考图优先自制或AI生成。",
-    priority: 74
-  },
-  {
-    id: 3,
-    source: "百度/小红书",
-    hotword: "期末复习计划",
-    scene: "期末考试前两到四周",
-    audience: "小初高学生、家长、大学生",
-    productType: "表格模板 + 复习教程",
-    deliverables: "7天计划表、14天计划表、错题整理表、背诵打卡表、三轮复习法说明",
-    title: "期末复习计划表可打印错题整理背诵打卡模板电子版",
-    price: "6.9-15.9",
-    materialPlan: "按年级和科目拆分计划表，做可打印PDF和可编辑Excel。",
-    risk: "避免提分承诺；写学习规划工具。",
-    priority: 88
-  },
-  {
-    id: 4,
-    source: "小红书/抖音/百度",
-    hotword: "暑假旅行攻略",
-    scene: "暑假出行前置规划",
-    audience: "学生党、亲子家庭、情侣出游",
-    productType: "攻略模板 + 清单",
-    deliverables: "行程表、预算表、行李清单、拍照机位表、城市攻略模板、避坑清单",
-    title: "暑假旅行攻略模板Excel行程预算表行李清单电子版",
-    price: "9.9-19.9",
-    materialPlan: "做通用旅行规划模板，再按热门城市复制出城市版。",
-    risk: "城市信息要标注需自行核验，不搬运他人攻略图片。",
-    priority: 82
-  },
-  {
-    id: 5,
-    source: "知乎/小红书/公众号",
-    hotword: "AI提示词 副业",
-    scene: "AI工具持续热",
-    audience: "自媒体新手、副业用户、小商家",
-    productType: "教程 + 提示词包",
-    deliverables: "小红书文案提示词、标题公式、封面提示词、行业案例、改写模板",
-    title: "小红书AI爆款文案提示词DeepSeek豆包通用教程资料包",
-    price: "19.9-49.9",
-    materialPlan: "按行业拆提示词，配改写前后案例，附操作步骤截图。",
-    risk: "不能承诺爆款和收益；写提效工具。",
-    priority: 86
-  },
-  {
-    id: 6,
-    source: "微博/百度/什么值得买",
-    hotword: "618购物节",
-    scene: "大促前后",
-    audience: "学生党、宝妈、数码用户",
-    productType: "选购清单 + 比价表",
-    deliverables: "购物预算表、比价记录表、家电数码选购清单、避坑指南",
-    title: "618购物清单比价表预算表家电数码选购避坑指南电子版",
-    price: "6.9-19.9",
-    materialPlan: "按品类整理选购参数，不推荐具体店铺返利，做中立清单。",
-    risk: "不要做虚假优惠承诺，不碰返利违规宣传。",
-    priority: 70
-  },
-  {
-    id: 7,
-    source: "知乎/小红书/百度",
-    hotword: "毕业入职 租房搬家",
-    scene: "毕业后入职租房季",
-    audience: "应届生、实习生、异地入职人群",
-    productType: "清单 + 教程",
-    deliverables: "租房检查表、合同避坑清单、搬家清单、入职准备表、预算表",
-    title: "应届生租房搬家入职准备清单合同避坑表电子版",
-    price: "9.9-19.9",
-    materialPlan: "整理租房看房检查项、通勤预算、押金水电注意事项。",
-    risk: "不提供法律结论，只做检查清单。",
-    priority: 80
-  }
-];
-
-const collectorBookmarklet =
-  "javascript:(()=>{const t=document.body.innerText.replace(/\\n{3,}/g,'\\n\\n');navigator.clipboard.writeText(t);alert('已复制当前页面可见文字，回到选品系统粘贴导入');})();";
-
-const sop = [
-  { title: "1 大课介绍", body: "理解项目结构，按找词、选品、上架、检测、发货推进", output: "写下项目闭环和今天主线", target: "overview" },
-  { title: "2 店铺开通", body: "先开通基础店铺，闲管家后面再看", output: "记录店铺账号和开通状态", target: "listing" },
-  { title: "3 怎么理解虚拟类目", body: "理解虚拟产品和交付形式", output: "明确交付物：资料包/模板/教程/图片", target: "products" },
-  { title: "4 淘宝店铺基础开通", body: "完成淘宝基础后台设置", output: "确认保证金、类目、发货方式", target: "listing" },
-  { title: "5 选品说明和准备", body: "选品方法包括淘宝选品、闲鱼选品、小红书反向选品、找热点", output: "整理 3 个备选方向", target: "keywords" },
-  { title: "6 选品基础-找词", body: "整理自己的虚拟词库：功能词、店铺裂变词、主题参谋词", output: "新增 20 个关键词", target: "keywords" },
-  { title: "7 筛出优质词等于优质品", body: "看付款人数、评价、价格", output: "保留 10 个待测词", target: "screen" },
-  { title: "8 小红书反向选品", body: "看主题图、价格、评论、是否能做出产品", output: "记录 3 个可复制选题", target: "screen" },
-  { title: "9 找热点", body: "用热点找可上架的虚拟资料方向", output: "写下 3 个热点资料方向", target: "keywords" },
-  { title: "10 红薯速刷轻度标签", body: "用小红书刷出轻度标签", output: "记录账号标签和推荐内容", target: "screen" },
-  { title: "11 AI主图和AI标题", body: "用 AI 生成标题和主图思路", output: "生成 3 个标题和 1 张主图方案", target: "products" },
-  { title: "12 淘宝快速上架", body: "在千牛/淘宝后台快速上架", output: "完成 1 个淘宝商品上架", target: "listing" },
-  { title: "13 闲鱼上架", body: "同步闲鱼上架", output: "完成 1 个闲鱼商品上架", target: "listing" },
-  { title: "14 违规检测", body: "淘宝商品检测提交、日常维护、清理商品", output: "提交检测并记录问题", target: "listing" },
-  { title: "15 货源整理和发货问题", body: "找上家货源，整理资源，处理手动发货", output: "整理发货链接和售后话术", target: "products" }
-] as const;
-
-const initialSopRecords = sop.reduce<Record<number, SopRecord>>((records, _, index) => {
-  records[index] = { done: index < 5, output: "" };
-  return records;
-}, {});
-
-const nav = [
-  ["overview", "总览", Home],
-  ["sop", "视频精华/SOP", BookOpen],
-  ["hotspot", "小红书热点选品", Flame],
-  ["trends", "热榜教程选品", Globe2],
-  ["keywords", "关键词库", Search],
-  ["screen", "筛词工作台", Tags],
-  ["products", "商品库", Store],
-  ["listing", "上架记录", ClipboardList],
-  ["tasks", "每日任务", CheckCircle2],
-  ["review", "数据复盘", BarChart3]
-] as const;
-
-function useLocalState<T>(key: string, initial: T) {
-  const [value, setValue] = useState<T>(initial);
-
-  useEffect(() => {
-    const raw = window.localStorage.getItem(key);
-    if (raw) setValue(JSON.parse(raw));
-  }, [key]);
-
-  useEffect(() => {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  }, [key, value]);
-
-  return [value, setValue] as const;
+  category: string;
+  notes: string;
+  status: ProductStatus;
+  createdAt: string;
 }
 
-function Badge({ children, tone = "gray" }: { children: React.ReactNode; tone?: "gray" | "green" | "amber" | "blue" }) {
-  const tones = {
-    gray: "bg-slate-100 text-slate-700 border-slate-200",
-    green: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    amber: "bg-amber-50 text-amber-700 border-amber-200",
-    blue: "bg-blue-50 text-blue-700 border-blue-200"
-  };
-  return <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs ${tones[tone]}`}>{children}</span>;
+interface TrendItem {
+  rank: number;
+  title: string;
+  hotValue: string;
+  url: string;
 }
 
-function Panel({ title, icon: Icon, children, action }: { title: string; icon: typeof Home; children: React.ReactNode; action?: React.ReactNode }) {
-  return (
-    <section className="rounded-lg border border-line bg-white shadow-panel">
-      <div className="flex items-center justify-between border-b border-line px-4 py-3">
-        <div className="flex items-center gap-2">
-          <Icon className="h-4 w-4 text-slate-500" />
-          <h2 className="text-sm font-semibold">{title}</h2>
-        </div>
-        {action}
-      </div>
-      <div className="p-4">{children}</div>
-    </section>
-  );
+interface TrendsData {
+  [platform: string]: TrendItem[] | string | undefined;
+  _updatedAt?: string;
 }
 
-export default function HomePage() {
-  const [tab, setTab] = useState<(typeof nav)[number][0]>("overview");
-  const [keywords, setKeywords] = useLocalState("vp_keywords", initialKeywords);
-  const [products, setProducts] = useLocalState("vp_products", initialProducts);
-  const [tasks, setTasks] = useLocalState("vp_tasks", initialTasks);
-  const [listings, setListings] = useLocalState("vp_listings", initialListings);
-  const [sopRecords, setSopRecords] = useLocalState("vp_sop_records", initialSopRecords);
-  const [hotTopics, setHotTopics] = useLocalState("vp_hot_topics", initialHotTopics);
-  const [trendTopics, setTrendTopics] = useLocalState("vp_trend_topics", initialTrendTopics);
-  const [newWord, setNewWord] = useState("");
-  const [collectorText, setCollectorText] = useState("");
-  const [trendInput, setTrendInput] = useState("");
-  const [hotForm, setHotForm] = useState({
-    word: "",
-    category: "学习资料",
-    likes: "100",
-    comments: "10",
-    competitors: "10",
-    price: "9.9",
-    difficulty: "2",
-    note: ""
+// ==================== 本地存储工具 ====================
+
+const STORAGE_KEY = 'xuanpin_products';
+
+function loadProducts(): Product[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveProducts(products: Product[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
+}
+
+// ==================== 主组件 ====================
+
+export default function Home() {
+  const [tab, setTab] = useState<'products' | 'trends'>('products');
+
+  // 选品记录状态
+  const [products, setProducts] = useState<Product[]>([]);
+  const [search, setSearch] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [form, setForm] = useState<Omit<Product, 'id' | 'createdAt'>>({
+    name: '', url: '', price: '', category: '', notes: '', status: '考虑中',
   });
 
-  const dashboard = useMemo(() => {
-    const doneTasks = tasks.filter((item) => item.done).length;
-    const doneSop = Object.values(sopRecords).filter((item) => item.done).length;
-    const keptKeywords = keywords.filter((item) => item.keep).length;
-    const listedCount = listings.filter((item) => item.taobao || item.xianyu).length;
-    const checkedCount = listings.filter((item) => item.checked).length;
-    const latest = dailyMetrics[dailyMetrics.length - 1];
-    const previous = dailyMetrics[dailyMetrics.length - 2];
-    const exposureGrowth = Math.round(((latest.exposure - previous.exposure) / previous.exposure) * 100);
-    const revenue = dailyMetrics.reduce((sum, item) => sum + item.revenue, 0);
-    const conversion = latest.visitors ? Math.round((latest.orders / latest.visitors) * 1000) / 10 : 0;
+  // 热榜状态
+  const [trends, setTrends] = useState<TrendsData>({});
+  const [trendsLoading, setTrendsLoading] = useState(false);
+  const [trendsUpdatedAt, setTrendsUpdatedAt] = useState('');
 
-    return {
-      doneTasks,
-      keptKeywords,
-      listedCount,
-      checkedCount,
-      latest,
-      exposureGrowth,
-      revenue,
-      conversion,
-      doneSop,
-      taskRate: tasks.length ? Math.round((doneTasks / tasks.length) * 100) : 0,
-      sopRate: Math.round((doneSop / sop.length) * 100),
-      listingRate: products.length ? Math.round((listedCount / products.length) * 100) : 0
-    };
-  }, [keywords, products.length, listings, tasks, sopRecords]);
+  // AI 分析状态
+  const [analyzeKeyword, setAnalyzeKeyword] = useState('');
+  const [analyzeResult, setAnalyzeResult] = useState('');
+  const [analyzing, setAnalyzing] = useState(false);
 
-  const stats = useMemo<[string, string | number, string, LucideIcon, "blue" | "green" | "amber" | "gray"][]>(() => [
-    ["今日曝光", dashboard.latest.exposure, `${dashboard.exposureGrowth >= 0 ? "+" : ""}${dashboard.exposureGrowth}% 较昨日`, Activity, "blue"],
-    ["访问转化", `${dashboard.conversion}%`, "访客到成交", TrendingUp, "green"],
-    ["预估成交额", `¥${dashboard.revenue.toFixed(1)}`, "7 天累计", WalletCards, "amber"],
-    ["任务完成", `${dashboard.doneTasks}/${tasks.length}`, `${dashboard.taskRate}% 进度`, CheckCircle2, "gray"]
-  ], [dashboard, tasks.length]);
+  // Toast
+  const [toast, setToast] = useState<{ show: boolean; msg: string; type: string }>({ show: false, msg: '', type: '' });
 
-  const addKeyword = () => {
-    if (!newWord.trim()) return;
-    setKeywords([
-      {
+  // ===== 初始化 =====
+  useEffect(() => {
+    setProducts(loadProducts());
+  }, []);
+
+  const showToast = (msg: string, type = '') => {
+    setToast({ show: true, msg, type });
+    setTimeout(() => setToast({ show: false, msg: '', type: '' }), 3000);
+  };
+
+  // ===== 选品 CRUD =====
+
+  const filteredProducts = products.filter(p => {
+    const matchSearch = !search || p.name.includes(search) || p.notes.includes(search);
+    const matchStatus = !filterStatus || p.status === filterStatus;
+    const matchCategory = !filterCategory || p.category === filterCategory;
+    return matchSearch && matchStatus && matchCategory;
+  });
+
+  const categories = [...new Set(products.map(p => p.category).filter(Boolean))];
+
+  const openAddModal = () => {
+    setEditingId(null);
+    setForm({ name: '', url: '', price: '', category: '', notes: '', status: '考虑中' });
+    setShowModal(true);
+  };
+
+  const openEditModal = (p: Product) => {
+    setEditingId(p.id);
+    setForm({ name: p.name, url: p.url, price: p.price, category: p.category, notes: p.notes, status: p.status });
+    setShowModal(true);
+  };
+
+  const saveProduct = () => {
+    if (!form.name.trim()) { showToast('请填写商品名称', 'error'); return; }
+    let updated: Product[];
+    if (editingId !== null) {
+      updated = products.map(p => p.id === editingId ? { ...p, ...form } : p);
+      showToast('修改成功');
+    } else {
+      const newProduct: Product = {
         id: Date.now(),
-        word: newWord.trim(),
-        source: "手动",
-        direction: "待分类",
-        price: "-",
-        payCount: 0,
-        reviews: 0,
-        keep: false,
-        note: ""
-      },
-      ...keywords
-    ]);
-    setNewWord("");
+        ...form,
+        createdAt: new Date().toLocaleString('zh-CN'),
+      };
+      updated = [newProduct, ...products];
+      showToast('添加成功');
+    }
+    setProducts(updated);
+    saveProducts(updated);
+    setShowModal(false);
   };
 
-  const addHotTopic = () => {
-    if (!hotForm.word.trim()) return;
-    setHotTopics([
-      {
-        id: Date.now(),
-        word: hotForm.word.trim(),
-        category: hotForm.category.trim() || "待分类",
-        likes: Number(hotForm.likes) || 0,
-        comments: Number(hotForm.comments) || 0,
-        competitors: Number(hotForm.competitors) || 0,
-        price: Number(hotForm.price) || 0,
-        difficulty: Math.min(5, Math.max(1, Number(hotForm.difficulty) || 1)),
-        note: hotForm.note
-      },
-      ...hotTopics
-    ]);
-    setHotForm({ word: "", category: "学习资料", likes: "100", comments: "10", competitors: "10", price: "9.9", difficulty: "2", note: "" });
+  const deleteProduct = (id: number) => {
+    if (!confirm('确定删除这条选品吗？')) return;
+    const updated = products.filter(p => p.id !== id);
+    setProducts(updated);
+    saveProducts(updated);
+    showToast('已删除');
   };
 
-  const addHotTopicToKeyword = (topic: HotTopic) => {
-    setKeywords([
-      {
-        id: Date.now(),
-        word: topic.word,
-        source: "小红书热点",
-        direction: topic.category,
-        price: `${topic.price}`,
-        payCount: topic.likes,
-        reviews: topic.comments,
-        keep: getHotScore(topic) >= 70,
-        note: topic.note
-      },
-      ...keywords
-    ]);
+  const quickStatus = (id: number, status: ProductStatus) => {
+    const updated = products.map(p => p.id === id ? { ...p, status } : p);
+    setProducts(updated);
+    saveProducts(updated);
   };
 
-  const createProductFromTopic = (topic: HotTopic) => {
-    const idea = getProductIdea(topic);
-    setProducts([
-      {
-        id: Date.now(),
-        name: idea.name,
-        keyword: topic.word,
-        platform: "淘宝/闲鱼",
-        title: idea.title,
-        price: topic.price || 9.9,
-        cover: "待做",
-        detail: "待做",
-        delivery: idea.delivery,
-        status: "选品草稿"
-      },
-      ...products
-    ]);
-    setTab("products");
+  // ===== 热榜 =====
+
+  const loadTrends = useCallback(async (forceRefresh = false) => {
+    setTrendsLoading(true);
+    try {
+      const url = forceRefresh ? '/api/trends?refresh=1' : '/api/trends';
+      const res = await fetch(url);
+      const data = await res.json();
+      setTrends(data);
+      setTrendsUpdatedAt(data._updatedAt || '');
+    } catch {
+      showToast('热榜加载失败', 'error');
+    } finally {
+      setTrendsLoading(false);
+    }
+  }, []);
+
+  const handleTabTrends = () => {
+    setTab('trends');
+    if (Object.keys(trends).length === 0) loadTrends();
   };
 
-  const createProductFromTrend = (topic: TrendTopic) => {
-    setProducts([
-      {
-        id: Date.now(),
-        name: topic.productType.includes("提示词") ? `${topic.hotword}资料包` : `${topic.hotword}${topic.productType.includes("表格") ? "模板包" : "教程包"}`,
-        keyword: topic.hotword,
-        platform: "淘宝/闲鱼",
-        title: topic.title,
-        price: Number(topic.price.split("-")[0]) || 9.9,
-        cover: "待做",
-        detail: "待做",
-        delivery: "PDF/Excel/网盘链接",
-        status: "热榜草稿"
-      },
-      ...products
-    ]);
-    setTab("products");
+  // ===== AI 分析 =====
+
+  const doAnalyze = async (keyword?: string) => {
+    const kw = keyword || analyzeKeyword;
+    if (!kw.trim()) return;
+    if (keyword) setAnalyzeKeyword(keyword);
+    setTab('trends');
+    setAnalyzing(true);
+    setAnalyzeResult('');
+    try {
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyword: kw }),
+      });
+      const data = await res.json();
+      setAnalyzeResult(data.success ? data.analysis : `❌ ${data.error}`);
+    } catch (e: unknown) {
+      setAnalyzeResult('❌ 请求失败，请检查网络');
+    } finally {
+      setAnalyzing(false);
+    }
   };
 
-  const addTrendFromInput = () => {
-    const parsed = parseTrendInput(trendInput);
-    if (!parsed.length) return;
-    setTrendTopics([...parsed, ...trendTopics]);
-    setTrendInput("");
+  // ===== 辅助函数 =====
+
+  const platformIcon = (name: string) =>
+    ({ '微博热搜': '🌊', '知乎热榜': '💡', '百度热搜': '🔍', '今日头条': '📰' } as Record<string, string>)[name] || '📊';
+
+  const formatHot = (val: string) => {
+    const n = parseInt(val);
+    if (isNaN(n) || !val) return val || '';
+    return n >= 10000 ? (n / 10000).toFixed(1) + '万' : val;
   };
 
-  const importCollectorText = () => {
-    const imported = parseXhsCollectorText(collectorText);
-    if (!imported.length) return;
-    setHotTopics([...imported, ...hotTopics]);
-    setCollectorText("");
-  };
+  const trendsEntries = Object.entries(trends).filter(
+    (entry): entry is [string, TrendItem[]] => Array.isArray(entry[1])
+  );
+
+  // ==================== 渲染 ====================
 
   return (
-    <main className="flex min-h-screen">
-      <aside className="fixed inset-y-0 left-0 w-60 border-r border-line bg-white">
-        <div className="border-b border-line px-4 py-4">
-          <div className="text-sm font-semibold">虚拟项目运营工作台</div>
-          <div className="mt-1 text-xs text-slate-500">淘宝 / 闲鱼执行系统</div>
+    <div className="min-h-screen bg-[#0f1117] text-gray-200">
+
+      {/* 顶栏 */}
+      <div className="sticky top-0 z-50 bg-[#161b22] border-b border-[#30363d] h-14 flex items-center px-6 gap-8">
+        <span className="text-lg font-bold text-[#58a6ff]">选品<span className="text-white">助手</span></span>
+        <div className="flex gap-1">
+          <button onClick={() => setTab('products')}
+            className={`px-4 py-1.5 rounded-md text-sm transition-all ${tab === 'products' ? 'bg-[#21262d] text-[#58a6ff] font-medium' : 'text-gray-400 hover:bg-[#21262d] hover:text-gray-200'}`}>
+            📦 选品记录
+          </button>
+          <button onClick={handleTabTrends}
+            className={`px-4 py-1.5 rounded-md text-sm transition-all ${tab === 'trends' ? 'bg-[#21262d] text-[#58a6ff] font-medium' : 'text-gray-400 hover:bg-[#21262d] hover:text-gray-200'}`}>
+            🔥 热点分析
+          </button>
         </div>
-        <nav className="space-y-1 p-3">
-          {nav.map(([id, label, Icon]) => (
-            <button
-              key={id}
-              onClick={() => setTab(id)}
-              className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm ${
-                tab === id ? "bg-ink text-white" : "text-slate-700 hover:bg-slate-100"
-              }`}
-            >
-              <Icon className="h-4 w-4" />
-              {label}
-            </button>
-          ))}
-        </nav>
-      </aside>
+      </div>
 
-      <section className="ml-60 flex-1">
-        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-white px-6 py-4">
+      <div className="max-w-6xl mx-auto p-6">
+
+        {/* ===== 选品记录 Tab ===== */}
+        {tab === 'products' && (
           <div>
-            <h1 className="text-lg font-semibold">薅流虚拟项目执行台</h1>
-            <p className="text-xs text-slate-500">按视频流程：找词 → 筛词 → 上架 → 检测 → 发货</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge tone="blue">{new Date().toLocaleDateString("zh-CN")}</Badge>
-            <button className="rounded-md border border-line bg-white px-3 py-2 text-sm hover:bg-slate-50">
-              <Settings2 className="inline h-4 w-4" /> 设置
-            </button>
-          </div>
-        </header>
+            {/* 统计 */}
+            <div className="grid grid-cols-4 gap-3 mb-5">
+              {[
+                { label: '全部', value: products.length, color: 'text-white' },
+                { label: '考虑中', value: products.filter(p => p.status === '考虑中').length, color: 'text-[#58a6ff]' },
+                { label: '已选中', value: products.filter(p => p.status === '已选').length, color: 'text-[#3fb950]' },
+                { label: '已放弃', value: products.filter(p => p.status === '已放弃').length, color: 'text-[#f85149]' },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="bg-[#0d1117] border border-[#21262d] rounded-lg p-3 text-center">
+                  <div className={`text-2xl font-bold ${color}`}>{value}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">{label}</div>
+                </div>
+              ))}
+            </div>
 
-        <div className="space-y-5 p-6">
-          {tab === "overview" && (
-            <>
-              <section className="rounded-lg border border-line bg-ink p-5 text-white shadow-panel">
-                <div className="grid gap-5 lg:grid-cols-[1.3fr_0.7fr]">
-                  <div>
-                    <div className="flex items-center gap-2 text-xs text-slate-300">
-                      <Sparkles className="h-4 w-4 text-amber-300" />
-                      今日运营指挥中心
+            <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-5">
+              <div className="flex justify-between items-center mb-4">
+                <span className="font-semibold text-white">选品记录</span>
+                <button onClick={openAddModal}
+                  className="bg-[#238636] hover:bg-[#2ea043] border border-[#2ea043] text-white text-sm px-4 py-1.5 rounded-md transition-colors">
+                  ＋ 添加选品
+                </button>
+              </div>
+
+              {/* 搜索筛选 */}
+              <div className="flex gap-2 mb-4 flex-wrap">
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 搜索商品名/备注..."
+                  className="flex-1 min-w-[200px] bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 outline-none focus:border-[#58a6ff]" />
+                <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+                  className="bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-2 text-sm text-white outline-none focus:border-[#58a6ff]">
+                  <option value="">全部状态</option>
+                  <option>考虑中</option><option>已选</option><option>已放弃</option>
+                </select>
+                <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}
+                  className="bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-2 text-sm text-white outline-none focus:border-[#58a6ff]">
+                  <option value="">全部分类</option>
+                  {categories.map(c => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+
+              {/* 产品网格 */}
+              {filteredProducts.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {filteredProducts.map(p => (
+                    <div key={p.id} className="bg-[#0d1117] border border-[#21262d] hover:border-[#388bfd] rounded-lg p-4 transition-colors">
+                      <div className="font-semibold text-white mb-2">{p.name}</div>
+                      <div className="flex flex-wrap gap-2 mb-2 items-center">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          p.status === '考虑中' ? 'bg-[#1f3a5f] text-[#58a6ff]' :
+                          p.status === '已选' ? 'bg-[#1a3a2a] text-[#3fb950]' :
+                          'bg-[#3a1a1a] text-[#f85149]'}`}>{p.status}</span>
+                        {p.price && <span className="text-xs font-semibold text-yellow-400">¥{p.price}</span>}
+                        {p.category && <span className="text-xs bg-[#21262d] text-gray-400 px-2 py-0.5 rounded-full">{p.category}</span>}
+                      </div>
+                      {p.notes && <p className="text-xs text-gray-400 mb-2 leading-relaxed">{p.notes}</p>}
+                      {p.url && (
+                        <a href={p.url} target="_blank" rel="noreferrer"
+                          className="text-xs text-[#388bfd] hover:underline block mb-2 truncate">
+                          🔗 {p.url}
+                        </a>
+                      )}
+                      <div className="flex gap-2 mt-2 items-center">
+                        <button onClick={() => openEditModal(p)}
+                          className="text-xs bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] text-gray-300 px-2.5 py-1 rounded-md transition-colors">
+                          编辑
+                        </button>
+                        <select value={p.status} onChange={e => quickStatus(p.id, e.target.value as ProductStatus)}
+                          className="text-xs bg-[#21262d] border border-[#30363d] text-gray-300 px-2 py-1 rounded-md outline-none">
+                          <option>考虑中</option><option>已选</option><option>已放弃</option>
+                        </select>
+                        <button onClick={() => deleteProduct(p.id)}
+                          className="text-xs border border-[#f85149] text-[#f85149] hover:bg-[#f8514918] px-2.5 py-1 rounded-md transition-colors ml-auto">
+                          删除
+                        </button>
+                      </div>
+                      <div className="text-[10px] text-gray-600 mt-2">{p.createdAt}</div>
                     </div>
-                    <h2 className="mt-3 text-2xl font-semibold">虚拟项目数据看板</h2>
-                    <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-                      把找词、筛词、上架、检测和成交数据放在一个页面，先看趋势，再决定今天要推哪个品、砍哪个词。
-                    </p>
-                    <div className="mt-5 grid grid-cols-4 gap-3">
-                      {stats.map(([label, value, hint, Icon, tone]) => (
-                        <MetricCard key={label} label={label} value={value} hint={hint} icon={Icon} tone={tone} dark />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-16 text-gray-500">
+                  <div className="text-4xl mb-3">📦</div>
+                  <div className="text-sm">{search || filterStatus || filterCategory ? '没有符合条件的选品' : '还没有选品记录，点击「添加选品」开始吧'}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ===== 热点分析 Tab ===== */}
+        {tab === 'trends' && (
+          <div>
+            {/* AI 分析区域 */}
+            <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-5 mb-5">
+              <div className="flex justify-between items-center mb-4">
+                <span className="font-semibold text-white">🤖 AI 虚拟商品延伸分析</span>
+                {trendsUpdatedAt && <span className="text-xs text-gray-500">热榜更新于 {trendsUpdatedAt}</span>}
+              </div>
+              <div className="flex gap-2 mb-4">
+                <input value={analyzeKeyword} onChange={e => setAnalyzeKeyword(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && doAnalyze()}
+                  placeholder="输入热点关键词，如：王者荣耀、AI绘画、减肥..."
+                  className="flex-1 bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 outline-none focus:border-[#58a6ff]" />
+                <button onClick={() => doAnalyze()} disabled={analyzing}
+                  className="bg-[#1f6feb] hover:bg-[#388bfd] border border-[#388bfd] text-white text-sm px-4 py-2 rounded-md transition-colors disabled:opacity-50">
+                  {analyzing ? '分析中...' : '🚀 AI 分析'}
+                </button>
+              </div>
+              <div className="bg-[#0d1117] border border-[#21262d] rounded-lg p-4 min-h-[100px] max-h-[500px] overflow-y-auto">
+                {analyzing ? (
+                  <div className="flex flex-col items-center justify-center py-10 gap-2">
+                    <div className="flex gap-1">
+                      {[0, 1, 2].map(i => (
+                        <span key={i} className="w-2 h-2 bg-[#58a6ff] rounded-full animate-bounce"
+                          style={{ animationDelay: `${i * 0.15}s` }} />
                       ))}
                     </div>
+                    <span className="text-sm text-gray-500">AI 正在分析中...</span>
                   </div>
-                  <div className="rounded-lg border border-white/10 bg-white/6 p-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">本周执行健康度</span>
-                      <Badge tone="green">可推进</Badge>
-                    </div>
-                    <ProgressRing value={dashboard.taskRate} label="任务完成率" />
-                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-300">
-                      <div className="rounded-md bg-white/6 p-3">
-                        <div>保留词</div>
-                        <strong className="mt-1 block text-lg text-white">{dashboard.keptKeywords}</strong>
-                      </div>
-                      <div className="rounded-md bg-white/6 p-3">
-                        <div>已上架</div>
-                        <strong className="mt-1 block text-lg text-white">{dashboard.listedCount}</strong>
-                      </div>
-                    </div>
+                ) : analyzeResult ? (
+                  <pre className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">{analyzeResult}</pre>
+                ) : (
+                  <div className="text-center py-10 text-gray-500 text-sm">
+                    👆 点击热榜词条或手动输入关键词，AI 会帮你分析可以卖什么虚拟商品
                   </div>
+                )}
+              </div>
+            </div>
+
+            {/* 热榜区域 */}
+            <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-5">
+              <div className="flex justify-between items-center mb-4">
+                <span className="font-semibold text-white">🔥 实时热榜</span>
+                <button onClick={() => loadTrends(true)} disabled={trendsLoading}
+                  className="bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] text-gray-300 text-sm px-3 py-1.5 rounded-md transition-colors disabled:opacity-50">
+                  {trendsLoading ? '刷新中...' : '⟳ 刷新热榜'}
+                </button>
+              </div>
+
+              {trendsLoading ? (
+                <div className="text-center py-16 text-gray-500">
+                  <div className="text-4xl mb-3">⏳</div>加载热榜数据中...
                 </div>
-              </section>
-
-              <div className="grid grid-cols-4 gap-3">
-                <MetricCard label="关键词池" value={keywords.length} hint={`${dashboard.keptKeywords} 个已保留`} icon={Database} tone="blue" />
-                <MetricCard label="商品数" value={products.length} hint={`${dashboard.listingRate}% 已进入上架`} icon={Store} tone="green" />
-                <MetricCard label="检测提交" value={dashboard.checkedCount} hint="降低违规风险" icon={ShieldAlert} tone="amber" />
-                <MetricCard label="SOP进度" value={`${dashboard.doneSop}/15`} hint={`${dashboard.sopRate}% 已完成`} icon={Rocket} tone="gray" />
-              </div>
-
-              <div className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
-                <Panel title="7 天趋势" icon={LineChart} action={<Badge tone="blue">曝光 / 访客 / 成交额</Badge>}>
-                  <TrendBoard data={dailyMetrics} />
-                </Panel>
-                <Panel title="转化漏斗" icon={BarChart3}>
-                  <FunnelBoard latest={dashboard.latest} />
-                </Panel>
-              </div>
-
-              <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-                <Panel title="渠道表现" icon={Activity}>
-                  <ChannelBoard />
-                </Panel>
-                <Panel title="商品信号榜" icon={TrendingUp}>
-                  <ProductSignalBoard />
-                </Panel>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <Panel title="今日执行" icon={CheckCircle2} action={<Badge tone={dashboard.taskRate >= 60 ? "green" : "amber"}>{dashboard.taskRate}%</Badge>}>
-                  <TaskList tasks={tasks} setTasks={setTasks} compact />
-                </Panel>
-                <Panel title="运营提醒" icon={FileText}>
-                  <div className="grid gap-2 text-sm">
-                    {[
-                      ["先推", "PPT模板包有成交信号，今天优先补标题和主图"],
-                      ["补数", "关键词池偏少，继续补到 20 个再筛"],
-                      ["风控", "上架后记得提交商品检测，避免违规"],
-                      ["复盘", "每天记录曝光、咨询、成交，三天无咨询就换方向"]
-                    ].map(([label, item]) => (
-                      <div key={item} className="grid grid-cols-[52px_1fr] items-center gap-3 rounded-md border border-line px-3 py-2">
-                        <Badge tone={label === "风控" ? "amber" : "blue"}>{label}</Badge>
-                        <span>{item}</span>
+              ) : trendsEntries.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {trendsEntries.map(([platform, items]) => (
+                    <div key={platform} className="bg-[#0d1117] border border-[#21262d] rounded-lg overflow-hidden">
+                      <div className="flex items-center gap-2 px-4 py-3 bg-[#161b22] border-b border-[#21262d]">
+                        <span>{platformIcon(platform)}</span>
+                        <span className="text-sm font-semibold text-white">{platform}</span>
+                        <span className="text-xs text-gray-500 ml-auto">{(items as TrendItem[]).length} 条</span>
                       </div>
-                    ))}
-                  </div>
-                </Panel>
-              </div>
-            </>
-          )}
-
-          {tab === "sop" && (
-            <div className="grid gap-4">
-              <section className="rounded-lg border border-line bg-white p-4 shadow-panel">
-                <div className="grid gap-4 lg:grid-cols-[0.72fr_1.28fr]">
-                  <div>
-                    <div className="flex items-center gap-2 text-sm font-semibold">
-                      <Rocket className="h-4 w-4 text-blue-600" />
-                      SOP 执行进度
-                    </div>
-                    <div className="mt-4 flex items-center gap-4">
-                      <ProgressRingLight value={dashboard.sopRate} />
-                      <div className="text-sm text-slate-600">
-                        <div><strong className="text-ink">{dashboard.doneSop}</strong> / 15 节已完成</div>
-                        <div className="mt-1">下一步建议：从找词、筛词、上架跑一个完整闭环。</div>
+                      <div className="max-h-[400px] overflow-y-auto">
+                        {(items as TrendItem[]).map((item) => (
+                          <div key={item.rank} onClick={() => doAnalyze(item.title)}
+                            className="flex items-center gap-3 px-4 py-2.5 border-b border-[#161b22] hover:bg-[#161b22] cursor-pointer group transition-colors">
+                            <span className={`text-xs font-bold w-5 text-center flex-shrink-0 ${
+                              item.rank === 1 ? 'text-[#f85149]' : item.rank === 2 ? 'text-[#f0883e]' : item.rank === 3 ? 'text-[#f0c040]' : 'text-gray-600'
+                            }`}>{item.rank}</span>
+                            <span className="text-xs text-gray-300 flex-1 leading-snug">{item.title}</span>
+                            {item.hotValue && <span className="text-[10px] text-gray-600 flex-shrink-0">{formatHot(item.hotValue)}</span>}
+                            <button className="text-[10px] px-2 py-0.5 bg-[#1f3a5f] text-[#58a6ff] rounded opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                              分析
+                            </button>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-5 gap-2 text-sm">
-                    {[
-                      ["找词", keywords.length, "关键词库"],
-                      ["筛词", dashboard.keptKeywords, "保留词"],
-                      ["商品", products.length, "商品库"],
-                      ["上架", dashboard.listedCount, "已上架"],
-                      ["检测", dashboard.checkedCount, "已提交"]
-                    ].map(([label, value, hint]) => (
-                      <div key={label} className="rounded-md border border-line bg-slate-50 p-3">
-                        <div className="text-xs text-slate-500">{hint}</div>
-                        <div className="mt-2 text-2xl font-semibold">{value}</div>
-                        <div className="mt-1 text-xs font-medium">{label}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </section>
-
-              <Panel title="15 节视频精华/SOP" icon={BookOpen} action={<Badge tone="blue">可执行</Badge>}>
-                <div className="grid gap-3">
-                  {sop.map((step, index) => (
-                    <SopStepRow
-                      key={step.title}
-                      index={index}
-                      step={step}
-                      record={sopRecords[index] ?? { done: false, output: "" }}
-                      onToggle={() =>
-                        setSopRecords({
-                          ...sopRecords,
-                          [index]: { ...(sopRecords[index] ?? { output: "" }), done: !(sopRecords[index]?.done ?? false) }
-                        })
-                      }
-                      onOutputChange={(output) =>
-                        setSopRecords({
-                          ...sopRecords,
-                          [index]: { ...(sopRecords[index] ?? { done: false }), output }
-                        })
-                      }
-                      onOpen={() => setTab(step.target)}
-                    />
                   ))}
                 </div>
-              </Panel>
+              ) : (
+                <div className="text-center py-16 text-gray-500">
+                  <div className="text-4xl mb-3">📡</div>
+                  <div className="text-sm">暂无热榜数据，点击「刷新热榜」获取</div>
+                </div>
+              )}
             </div>
-          )}
+          </div>
+        )}
+      </div>
 
-          {tab === "hotspot" && (
-            <div className="grid gap-4">
-              <section className="rounded-lg border border-blue-200 bg-blue-50 p-4 shadow-panel">
-                <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-                  <div>
-                    <div className="flex items-center gap-2 text-sm font-semibold text-blue-900">
-                      <Wand2 className="h-4 w-4" />
-                      真实小红书内容导入
-                    </div>
-                    <p className="mt-2 text-sm leading-6 text-blue-900/80">
-                      在小红书搜索结果页或笔记页复制可见文字，粘到这里，系统会自动提取候选热点词并估算选品分。这个比手动一个个填更接近实际使用。
-                    </p>
-                    <textarea
-                      value={collectorText}
-                      onChange={(event) => setCollectorText(event.target.value)}
-                      placeholder="粘贴小红书搜索结果/笔记页文字，例如标题、点赞、评论、收藏、价格、关键词..."
-                      className="mt-3 h-32 w-full rounded-md border border-blue-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500"
-                    />
-                    <button onClick={importCollectorText} className="mt-3 rounded-md bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-800">
-                      智能导入为热点词
-                    </button>
-                  </div>
-                  <div className="rounded-lg border border-blue-200 bg-white p-3">
-                    <div className="text-sm font-semibold">浏览器采集书签</div>
-                    <p className="mt-2 text-xs leading-5 text-slate-600">
-                      新建一个浏览器书签，把下面代码放进网址。打开小红书页面后点这个书签，会复制当前页面可见文本，再粘到左侧导入框。
-                    </p>
-                    <code className="mt-3 block max-h-28 overflow-auto rounded-md bg-slate-950 p-3 text-xs leading-5 text-slate-100">
-                      {collectorBookmarklet}
-                    </code>
-                  </div>
-                </div>
-              </section>
-
-              <section className="rounded-lg border border-line bg-white p-4 shadow-panel">
-                <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-                  <div>
-                    <div className="flex items-center gap-2 text-sm font-semibold">
-                      <Flame className="h-4 w-4 text-rose-500" />
-                      小红书热点选品助手
-                    </div>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">
-                      先把你在小红书看到的热点词、点赞、评论、同类商品数量填进来。系统会按热度、互动、竞争、制作难度和价格自动给出选品建议。
-                    </p>
-                    <div className="mt-4 grid grid-cols-3 gap-2">
-                      <MetricCard label="热点词" value={hotTopics.length} hint="已收集" icon={Flame} tone="blue" />
-                      <MetricCard label="建议立刻做" value={hotTopics.filter((item) => getHotScore(item) >= 75).length} hint="高分方向" icon={Wand2} tone="green" />
-                      <MetricCard label="需避坑" value={hotTopics.filter((item) => item.difficulty >= 4).length} hint="版权/同质化风险" icon={ShieldAlert} tone="amber" />
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-line bg-slate-50 p-3">
-                    <div className="mb-3 flex items-center justify-between">
-                      <strong className="text-sm">新增热点词</strong>
-                      <a
-                        href="https://www.xiaohongshu.com/explore"
-                        target="_blank"
-                        className="inline-flex items-center gap-1 rounded-md border border-line bg-white px-2 py-1 text-xs hover:bg-slate-50"
-                      >
-                        打开小红书 <ExternalLink className="h-3 w-3" />
-                      </a>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <InputBox label="热点词" value={hotForm.word} onChange={(value) => setHotForm({ ...hotForm, word: value })} placeholder="例如：期末复习计划表" />
-                      <InputBox label="类目" value={hotForm.category} onChange={(value) => setHotForm({ ...hotForm, category: value })} />
-                      <InputBox label="点赞/收藏" value={hotForm.likes} onChange={(value) => setHotForm({ ...hotForm, likes: value })} />
-                      <InputBox label="评论" value={hotForm.comments} onChange={(value) => setHotForm({ ...hotForm, comments: value })} />
-                      <InputBox label="同类商品数" value={hotForm.competitors} onChange={(value) => setHotForm({ ...hotForm, competitors: value })} />
-                      <InputBox label="可卖价格" value={hotForm.price} onChange={(value) => setHotForm({ ...hotForm, price: value })} />
-                    </div>
-                    <div className="mt-2 grid grid-cols-[1fr_120px] gap-2">
-                      <InputBox label="备注" value={hotForm.note} onChange={(value) => setHotForm({ ...hotForm, note: value })} placeholder="看到的爆款形式、交付方式、风险点" />
-                      <InputBox label="难度 1-5" value={hotForm.difficulty} onChange={(value) => setHotForm({ ...hotForm, difficulty: value })} />
-                    </div>
-                    <button onClick={addHotTopic} className="mt-3 w-full rounded-md bg-ink px-3 py-2 text-sm text-white hover:bg-slate-800">
-                      <Plus className="inline h-4 w-4" /> 加入热点池
-                    </button>
-                  </div>
-                </div>
-              </section>
-
-              <Panel title="热点词评分与选品建议" icon={Flame} action={<Badge tone="blue">按分数排序</Badge>}>
-                <div className="grid gap-3">
-                  {[...hotTopics].sort((a, b) => getHotScore(b) - getHotScore(a)).map((topic) => (
-                    <HotTopicCard
-                      key={topic.id}
-                      topic={topic}
-                      onAddKeyword={() => addHotTopicToKeyword(topic)}
-                      onCreateProduct={() => createProductFromTopic(topic)}
-                      onRemove={() => setHotTopics(hotTopics.filter((item) => item.id !== topic.id))}
-                    />
-                  ))}
-                </div>
-              </Panel>
-
-              <Panel title="本次抓取批次" icon={Search} action={<Badge tone="green">小红书 + 电商核验</Badge>}>
-                <div className="grid gap-3">
-                  {liveResearchFindings.map((item) => (
-                    <ResearchFindingCard key={item.direction} item={item} />
-                  ))}
-                </div>
-              </Panel>
-
-              <Panel title="可复制商品案例" icon={Store} action={<Badge tone="green">可直接测试</Badge>}>
-                <div className="mb-3 grid grid-cols-3 gap-2">
-                  {researchSources.map((item) => (
-                    <div key={item} className="rounded-md border border-line bg-slate-50 p-3 text-xs leading-5 text-slate-600">
-                      {item}
-                    </div>
-                  ))}
-                </div>
-                <div className="grid gap-3">
-                  {productCases.map((item) => (
-                    <ProductCaseCard
-                      key={item.product}
-                      item={item}
-                      onCreate={() =>
-                        setProducts([
-                          {
-                            id: Date.now(),
-                            name: item.product,
-                            keyword: item.topic,
-                            platform: "淘宝/闲鱼",
-                            title: item.title,
-                            price: Number(item.price.split("-")[0]) || 9.9,
-                            cover: "待做",
-                            detail: "待做",
-                            delivery: item.delivery,
-                            status: "案例草稿"
-                          },
-                          ...products
-                        ])
-                      }
-                    />
-                  ))}
-                </div>
-              </Panel>
-            </div>
-          )}
-
-          {tab === "trends" && (
-            <div className="grid gap-4">
-              <section className="rounded-lg border border-line bg-white p-4 shadow-panel">
-                <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-                  <div>
-                    <div className="flex items-center gap-2 text-sm font-semibold">
-                      <Globe2 className="h-4 w-4 text-blue-600" />
-                      TopHub 热榜教程选品
-                    </div>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">
-                      把 TopHub、微博、百度、知乎、小红书看到的热点词粘进来，系统会把它转成可做的教程、模板、清单或资料包方向。
-                    </p>
-                    <div className="mt-4 grid grid-cols-3 gap-2">
-                      <MetricCard label="候选方向" value={trendTopics.length} hint="热榜选品池" icon={Globe2} tone="blue" />
-                      <MetricCard label="高优先级" value={trendTopics.filter((item) => item.priority >= 85).length} hint="建议先做" icon={TrendingUp} tone="green" />
-                      <MetricCard label="低风险" value={trendTopics.filter((item) => !item.risk.includes("版权")).length} hint="更适合资料包" icon={ShieldAlert} tone="amber" />
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-line bg-slate-50 p-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <strong className="text-sm">导入热榜词</strong>
-                      <a href="https://tophub.today/" target="_blank" className="inline-flex items-center gap-1 rounded-md border border-line bg-white px-2 py-1 text-xs hover:bg-slate-50">
-                        打开 TopHub <ExternalLink className="h-3 w-3" />
-                      </a>
-                    </div>
-                    <textarea
-                      value={trendInput}
-                      onChange={(event) => setTrendInput(event.target.value)}
-                      placeholder="一行一个热点词，例如：高考志愿填报、毕业季拍照、618购物节、AI提示词、租房避坑..."
-                      className="h-32 w-full rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
-                    />
-                    <button onClick={addTrendFromInput} className="mt-3 w-full rounded-md bg-ink px-3 py-2 text-sm text-white hover:bg-slate-800">
-                      <Wand2 className="inline h-4 w-4" /> 转成教程产品候选
-                    </button>
-                  </div>
-                </div>
-              </section>
-
-              <Panel title="热榜教程产品候选" icon={Globe2} action={<Badge tone="blue">按优先级排序</Badge>}>
-                <div className="grid gap-3">
-                  {[...trendTopics].sort((a, b) => b.priority - a.priority).map((item) => (
-                    <TrendTopicCard
-                      key={item.id}
-                      item={item}
-                      onCreate={() => createProductFromTrend(item)}
-                      onRemove={() => setTrendTopics(trendTopics.filter((topic) => topic.id !== item.id))}
-                    />
-                  ))}
-                </div>
-              </Panel>
-            </div>
-          )}
-
-          {tab === "keywords" && (
-            <Panel title="关键词库" icon={Search}>
-              <div className="mb-3 flex gap-2">
-                <input value={newWord} onChange={(e) => setNewWord(e.target.value)} placeholder="输入新关键词" className="w-80 rounded-md border border-line px-3 py-2 text-sm" />
-                <button onClick={addKeyword} className="rounded-md bg-ink px-3 py-2 text-sm text-white"><Plus className="inline h-4 w-4" /> 新增</button>
+      {/* ===== 添加/编辑模态框 ===== */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
+          <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <h2 className="text-white font-bold mb-5">{editingId !== null ? '编辑选品' : '添加选品'}</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">商品名称 *</label>
+                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="输入商品名称"
+                  className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-2 text-sm text-white outline-none focus:border-[#58a6ff]" />
               </div>
-              <KeywordTable keywords={keywords} setKeywords={setKeywords} />
-            </Panel>
-          )}
-
-          {tab === "screen" && (
-            <Panel title="筛词工作台" icon={Tags}>
-              <div className="grid gap-3">
-                {keywords.map((item) => (
-                  <div key={item.id} className="grid grid-cols-[1fr_120px_120px_120px_120px] items-center gap-2 rounded-lg border border-line bg-white p-3 text-sm">
-                    <div>
-                      <div className="font-semibold">{item.word}</div>
-                      <div className="text-xs text-slate-500">{item.source} / {item.direction}</div>
-                    </div>
-                    <Badge tone={item.payCount > 30 ? "green" : "amber"}>付款 {item.payCount}</Badge>
-                    <Badge>评价 {item.reviews}</Badge>
-                    <Badge>{item.price}</Badge>
-                    <button onClick={() => setKeywords(keywords.map((kw) => kw.id === item.id ? { ...kw, keep: !kw.keep } : kw))} className="rounded-md border border-line px-3 py-2 hover:bg-slate-50">
-                      {item.keep ? "保留" : "待定"}
-                    </button>
-                  </div>
-                ))}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">参考价格（¥）</label>
+                  <input value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
+                    placeholder="0.00" type="number"
+                    className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-2 text-sm text-white outline-none focus:border-[#58a6ff]" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">状态</label>
+                  <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as ProductStatus }))}
+                    className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-2 text-sm text-white outline-none focus:border-[#58a6ff]">
+                    <option>考虑中</option><option>已选</option><option>已放弃</option>
+                  </select>
+                </div>
               </div>
-            </Panel>
-          )}
-
-          {tab === "products" && (
-            <Panel title="商品库" icon={Store}>
-              <DataTable headers={["产品名称", "关键词", "平台", "标题", "价格", "主图", "详情", "交付", "状态"]}>
-                {products.map((item) => (
-                  <tr key={item.id}>
-                    <td>{item.name}</td>
-                    <td>{item.keyword}</td>
-                    <td>{item.platform}</td>
-                    <td className="max-w-[360px] truncate">{item.title}</td>
-                    <td>{item.price}</td>
-                    <td>{item.cover}</td>
-                    <td>{item.detail}</td>
-                    <td>{item.delivery}</td>
-                    <td><Badge tone="blue">{item.status}</Badge></td>
-                  </tr>
-                ))}
-              </DataTable>
-            </Panel>
-          )}
-
-          {tab === "listing" && (
-            <Panel title="上架记录" icon={ClipboardList}>
-              <DataTable headers={["商品", "淘宝上架", "闲鱼上架", "商品检测提交", "日常维护", "清理商品"]}>
-                {listings.map((item) => (
-                  <tr key={item.id}>
-                    <td>{item.product}</td>
-                    {(["taobao", "xianyu", "checked", "maintained", "cleaned"] as const).map((field) => (
-                      <td key={field}>
-                        <input
-                          type="checkbox"
-                          checked={item[field]}
-                          onChange={() => setListings(listings.map((row) => row.id === item.id ? { ...row, [field]: !row[field] } : row))}
-                        />
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </DataTable>
-            </Panel>
-          )}
-
-          {tab === "tasks" && (
-            <Panel title="每日任务" icon={CheckCircle2}>
-              <TaskList tasks={tasks} setTasks={setTasks} />
-            </Panel>
-          )}
-
-          {tab === "review" && (
-            <Panel title="数据复盘" icon={BarChart3}>
-              <DataTable headers={["日期", "曝光", "访客", "咨询", "成交", "保留/淘汰"]}>
-                {[
-                  ["今天", "待填", "待填", "待填", "待填", "待判断"],
-                  ["昨天", "128", "21", "3", "1", "保留"],
-                  ["前天", "42", "6", "0", "0", "淘汰"]
-                ].map((row) => (
-                  <tr key={row[0]}>{row.map((cell) => <td key={cell}>{cell}</td>)}</tr>
-                ))}
-              </DataTable>
-            </Panel>
-          )}
-        </div>
-      </section>
-    </main>
-  );
-}
-
-function DataTable({ headers, children }: { headers: string[]; children: React.ReactNode }) {
-  return (
-    <div className="overflow-auto rounded-md border border-line">
-      <table className="w-full text-left text-sm">
-        <thead className="bg-slate-50 text-xs text-slate-500">
-          <tr>{headers.map((item) => <th key={item} className="whitespace-nowrap px-3 py-2 font-medium">{item}</th>)}</tr>
-        </thead>
-        <tbody className="[&_td]:border-t [&_td]:border-line [&_td]:px-3 [&_td]:py-2">{children}</tbody>
-      </table>
-    </div>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  hint,
-  icon: Icon,
-  tone,
-  dark = false
-}: {
-  label: string;
-  value: string | number;
-  hint: string;
-  icon: LucideIcon;
-  tone: "blue" | "green" | "amber" | "gray";
-  dark?: boolean;
-}) {
-  const toneClass = {
-    blue: dark ? "bg-blue-400/15 text-blue-200" : "bg-blue-50 text-blue-700",
-    green: dark ? "bg-emerald-400/15 text-emerald-200" : "bg-emerald-50 text-emerald-700",
-    amber: dark ? "bg-amber-400/15 text-amber-200" : "bg-amber-50 text-amber-700",
-    gray: dark ? "bg-slate-400/15 text-slate-200" : "bg-slate-100 text-slate-700"
-  };
-
-  return (
-    <div className={`${dark ? "border-white/10 bg-white/6" : "border-line bg-white"} rounded-lg border p-4 shadow-panel`}>
-      <div className="flex items-center justify-between">
-        <span className={`text-xs ${dark ? "text-slate-300" : "text-slate-500"}`}>{label}</span>
-        <span className={`rounded-md p-1.5 ${toneClass[tone]}`}>
-          <Icon className="h-4 w-4" />
-        </span>
-      </div>
-      <div className={`mt-3 text-2xl font-semibold ${dark ? "text-white" : "text-ink"}`}>{String(value)}</div>
-      <div className={`mt-1 text-xs ${dark ? "text-slate-300" : "text-slate-500"}`}>{hint}</div>
-    </div>
-  );
-}
-
-function ProgressRing({ value, label }: { value: number; label: string }) {
-  const degrees = Math.max(0, Math.min(100, value)) * 3.6;
-  return (
-    <div className="mt-5 flex items-center gap-4">
-      <div
-        className="grid h-28 w-28 place-items-center rounded-full"
-        style={{ background: `conic-gradient(#34d399 ${degrees}deg, rgba(255,255,255,0.12) 0deg)` }}
-      >
-        <div className="grid h-20 w-20 place-items-center rounded-full bg-ink text-center">
-          <div>
-            <div className="text-2xl font-semibold">{value}%</div>
-            <div className="text-[11px] text-slate-400">{label}</div>
-          </div>
-        </div>
-      </div>
-      <div className="text-sm leading-6 text-slate-300">
-        <div>今日目标：先完成一个可卖闭环。</div>
-        <div>判断标准：有词、有图、有上架、有检测。</div>
-      </div>
-    </div>
-  );
-}
-
-function TrendBoard({ data }: { data: DailyMetric[] }) {
-  const maxExposure = Math.max(...data.map((item) => item.exposure));
-  const maxRevenue = Math.max(...data.map((item) => item.revenue));
-
-  return (
-    <div className="space-y-4">
-      <div className="grid h-56 grid-cols-7 items-end gap-3 rounded-lg bg-slate-50 p-4">
-        {data.map((item) => (
-          <div key={item.date} className="flex h-full flex-col justify-end gap-2">
-            <div className="flex flex-1 items-end gap-1">
-              <div
-                className="w-full rounded-t bg-blue-500"
-                title={`曝光 ${item.exposure}`}
-                style={{ height: `${Math.max(12, (item.exposure / maxExposure) * 100)}%` }}
-              />
-              <div
-                className="w-full rounded-t bg-emerald-500"
-                title={`成交额 ${item.revenue}`}
-                style={{ height: `${Math.max(8, maxRevenue ? (item.revenue / maxRevenue) * 100 : 8)}%` }}
-              />
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">分类</label>
+                <input value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                  placeholder="如：教程、素材、模板..."
+                  className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-2 text-sm text-white outline-none focus:border-[#58a6ff]" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">淘宝链接</label>
+                <input value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
+                  placeholder="https://item.taobao.com/..."
+                  className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-2 text-sm text-white outline-none focus:border-[#58a6ff]" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">备注</label>
+                <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                  placeholder="记录选品原因、竞品分析等..." rows={3}
+                  className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-2 text-sm text-white outline-none focus:border-[#58a6ff] resize-y" />
+              </div>
             </div>
-            <div className="text-center text-xs text-slate-500">{item.date}</div>
-          </div>
-        ))}
-      </div>
-      <div className="flex items-center gap-4 text-xs text-slate-500">
-        <span className="inline-flex items-center gap-1"><i className="h-2 w-2 rounded-sm bg-blue-500" />曝光</span>
-        <span className="inline-flex items-center gap-1"><i className="h-2 w-2 rounded-sm bg-emerald-500" />成交额</span>
-        <span>趋势用于判断方向是否继续加码，不是财务报表。</span>
-      </div>
-    </div>
-  );
-}
-
-function FunnelBoard({ latest }: { latest: DailyMetric }) {
-  const rows = [
-    ["曝光", latest.exposure, "bg-blue-500"],
-    ["访客", latest.visitors, "bg-cyan-500"],
-    ["咨询", latest.consults, "bg-amber-500"],
-    ["成交", latest.orders, "bg-emerald-500"]
-  ] as const;
-  const max = latest.exposure || 1;
-
-  return (
-    <div className="space-y-3">
-      {rows.map(([label, value, color]) => (
-        <div key={label}>
-          <div className="mb-1 flex items-center justify-between text-sm">
-            <span>{label}</span>
-            <strong>{value}</strong>
-          </div>
-          <div className="h-8 rounded-md bg-slate-100 p-1">
-            <div className={`h-full rounded ${color}`} style={{ width: `${Math.max(8, (value / max) * 100)}%` }} />
-          </div>
-        </div>
-      ))}
-      <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-        咨询到成交偏低时，优先优化标题、价格和首图承诺。
-      </div>
-    </div>
-  );
-}
-
-function ChannelBoard() {
-  const max = Math.max(...channelMetrics.map((item) => item.exposure));
-
-  return (
-    <div className="space-y-4">
-      {channelMetrics.map((item) => (
-        <div key={item.name} className="space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <span className="font-medium">{item.name}</span>
-            <span className="text-slate-500">{item.consults} 咨询 / {item.orders} 成交</span>
-          </div>
-          <div className="h-3 rounded-full bg-slate-100">
-            <div className={`h-full rounded-full ${item.color}`} style={{ width: `${(item.exposure / max) * 100}%` }} />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ProductSignalBoard() {
-  return (
-    <div className="grid gap-3">
-      {productSignals.map((item, index) => (
-        <div key={item.name} className="grid grid-cols-[36px_1fr_92px_76px_76px] items-center gap-3 rounded-md border border-line px-3 py-3 text-sm">
-          <Badge tone={index === 0 ? "green" : index === 1 ? "blue" : "amber"}>{index + 1}</Badge>
-          <div>
-            <div className="font-medium">{item.name}</div>
-            <div className="mt-1 h-2 rounded-full bg-slate-100">
-              <div className="h-full rounded-full bg-ink" style={{ width: `${item.score}%` }} />
-            </div>
-          </div>
-          <div className="text-right font-semibold">¥{item.revenue.toFixed(1)}</div>
-          <Badge tone={item.trend.startsWith("+") ? "green" : "amber"}>{item.trend}</Badge>
-          <Badge tone={index === 0 ? "green" : "gray"}>{item.status}</Badge>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function getHotScore(topic: HotTopic) {
-  const heat = Math.min(35, Math.log10(topic.likes + 10) * 12);
-  const engagement = Math.min(25, Math.log10(topic.comments + 5) * 11);
-  const price = topic.price >= 9.9 ? 15 : topic.price >= 5 ? 9 : 4;
-  const competition = Math.max(0, 15 - topic.competitors * 0.45);
-  const difficulty = Math.max(0, 10 - topic.difficulty * 2);
-  return Math.round(heat + engagement + price + competition + difficulty);
-}
-
-function getHotDecision(score: number) {
-  if (score >= 75) return { label: "立刻做", tone: "green" as const, text: "热度、价格和竞争关系都不错，适合今天直接做草稿。" };
-  if (score >= 58) return { label: "继续观察", tone: "blue" as const, text: "有机会，但要先看同类商品标题、评价和交付难度。" };
-  return { label: "先放弃", tone: "amber" as const, text: "暂时不优先，可能是竞争太多、客单低或制作成本偏高。" };
-}
-
-function getProductIdea(topic: HotTopic) {
-  const suffix = topic.category.includes("图片") ? "素材包" : topic.category.includes("学习") ? "模板包" : "资料包";
-  return {
-    name: `${topic.word}${suffix}`,
-    title: `${topic.word}电子版${suffix} 可编辑可打印 即买即用`,
-    delivery: topic.category.includes("图片") ? "压缩包/网盘链接" : "PDF/Excel/网盘链接"
-  };
-}
-
-function parseXhsCollectorText(text: string): HotTopic[] {
-  const lines = text
-    .split(/\n+/)
-    .map((line) => line.trim())
-    .filter((line) => line.length >= 4 && line.length <= 36)
-    .filter((line) => !/^(赞|收藏|评论|分享|关注|登录|首页|发现|消息|我)$/.test(line));
-  const unique = Array.from(new Set(lines)).slice(0, 12);
-  const numbers = Array.from(text.matchAll(/\d+(?:\.\d+)?\s*(?:万|w|W)?/g)).map((match) => {
-    const raw = match[0];
-    const value = Number.parseFloat(raw);
-    return /万|w|W/.test(raw) ? Math.round(value * 10000) : Math.round(value);
-  });
-  const baseLikes = numbers.find((num) => num > 50) ?? 180;
-  const baseComments = numbers.find((num) => num > 5 && num < baseLikes) ?? 18;
-
-  return unique.map((word, index) => ({
-    id: Date.now() + index,
-    word: word.replace(/[#｜|]/g, "").trim(),
-    category: guessTopicCategory(word),
-    likes: Math.max(60, Math.round(baseLikes * (1 - index * 0.07))),
-    comments: Math.max(6, Math.round(baseComments * (1 - index * 0.05))),
-    competitors: 10 + index * 3,
-    price: guessTopicPrice(word),
-    difficulty: guessTopicDifficulty(word),
-    note: "由小红书页面可见文本导入，建议再人工核验同类商品和版权风险"
-  }));
-}
-
-function parseTrendInput(text: string): TrendTopic[] {
-  return text
-    .split(/\n|,|，|、/)
-    .map((item) => item.trim())
-    .filter((item) => item.length >= 2)
-    .slice(0, 20)
-    .map((hotword, index) => buildTrendTopic(hotword, Date.now() + index));
-}
-
-function buildTrendTopic(hotword: string, id: number): TrendTopic {
-  const lower = hotword.toLowerCase();
-  if (/高考|中考|志愿|升学|专业/.test(hotword)) {
-    return {
-      id,
-      source: "热榜导入",
-      hotword,
-      scene: "考试升学节点",
-      audience: "学生、家长",
-      productType: "教程 + 表格模板",
-      deliverables: "流程清单、对比表、避坑表、时间轴、家长话术",
-      title: `${hotword}清单Excel表格模板避坑指南电子版`,
-      price: "19.9-39.9",
-      materialPlan: "整理公开规则和表格模板，做成PDF+Excel，不承诺结果。",
-      risk: "不能写保录取、内部预测。",
-      priority: 92
-    };
-  }
-  if (/毕业|拍照|写真|剪映|照片/.test(hotword)) {
-    return {
-      id,
-      source: "热榜导入",
-      hotword,
-      scene: "毕业季/影像记录",
-      audience: "学生、摄影用户",
-      productType: "教程 + 文案模板",
-      deliverables: "姿势清单、场景清单、朋友圈文案、排版模板、剪映模板整理",
-      title: `${hotword}姿势文案排版教程模板电子版`,
-      price: "9.9-19.9",
-      materialPlan: "自制示意图、AI生成示意图、整理拍摄清单。",
-      risk: "避免搬运摄影师原图。",
-      priority: 74
-    };
-  }
-  if (/AI|deepseek|chatgpt|豆包|gemini|提示词|文案/.test(hotword) || lower.includes("ai")) {
-    return {
-      id,
-      source: "热榜导入",
-      hotword,
-      scene: "AI工具提效",
-      audience: "自媒体、小商家、副业人群",
-      productType: "教程 + 提示词包",
-      deliverables: "提示词、案例、操作流程、改写模板、行业模板",
-      title: `${hotword}提示词教程案例资料包复制可用`,
-      price: "19.9-49.9",
-      materialPlan: "按场景拆提示词，附原文/改写后案例。",
-      risk: "不能承诺爆款、收益。",
-      priority: 86
-    };
-  }
-  if (/旅行|旅游|攻略|暑假|行李|路线/.test(hotword)) {
-    return {
-      id,
-      source: "热榜导入",
-      hotword,
-      scene: "假期出行规划",
-      audience: "学生、亲子家庭、情侣",
-      productType: "表格模板 + 清单",
-      deliverables: "行程表、预算表、行李清单、路线规划、避坑清单",
-      title: `${hotword}Excel行程预算表行李清单电子版`,
-      price: "9.9-19.9",
-      materialPlan: "做通用模板，再拓展城市版本。",
-      risk: "城市信息需标注自行核验。",
-      priority: 82
-    };
-  }
-  if (/618|双11|购物|大促|选购|比价/.test(hotword)) {
-    return {
-      id,
-      source: "热榜导入",
-      hotword,
-      scene: "购物决策",
-      audience: "学生党、宝妈、数码用户",
-      productType: "选购清单 + 比价表",
-      deliverables: "预算表、比价表、参数清单、避坑指南",
-      title: `${hotword}购物比价表预算清单选购避坑指南`,
-      price: "6.9-19.9",
-      materialPlan: "按品类整理参数和预算，不做返利承诺。",
-      risk: "避免虚假优惠和返利违规。",
-      priority: 70
-    };
-  }
-  return {
-    id,
-    source: "热榜导入",
-    hotword,
-    scene: "热点事件延伸需求",
-    audience: "有同类痛点的人群",
-    productType: "教程/清单/模板",
-    deliverables: "步骤教程、检查清单、资料模板、案例复盘",
-    title: `${hotword}教程清单模板资料包电子版`,
-    price: "9.9-29.9",
-    materialPlan: "先拆用户痛点，再整理成清单、教程或模板。",
-    risk: "避免直接搬运热点原文和版权素材。",
-    priority: 60
-  };
-}
-
-function guessTopicCategory(word: string) {
-  if (/高考|志愿|升学|专业|院校/.test(word)) return "升学资料";
-  if (/毕业|拍照|写真|朋友圈|文案/.test(word)) return "图片素材";
-  if (/期末|复习|学习|考试|错题/.test(word)) return "学习资料";
-  if (/旅行|旅游|攻略|行李|路线/.test(word)) return "旅游攻略";
-  if (/AI|提示词|文案|副业/.test(word)) return "AI工具";
-  if (/记账|预算|计划|表格/.test(word)) return "办公效率";
-  return "待验证热点";
-}
-
-function guessTopicPrice(word: string) {
-  if (/高考|志愿|AI|副业/.test(word)) return 19.9;
-  if (/旅行|攻略|毕业/.test(word)) return 12.9;
-  return 9.9;
-}
-
-function guessTopicDifficulty(word: string) {
-  if (/美甲|图片|素材|写真/.test(word)) return 4;
-  if (/高考|志愿|AI/.test(word)) return 3;
-  return 2;
-}
-
-function InputBox({
-  label,
-  value,
-  onChange,
-  placeholder
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs text-slate-500">{label}</span>
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
-      />
-    </label>
-  );
-}
-
-function HotTopicCard({
-  topic,
-  onAddKeyword,
-  onCreateProduct,
-  onRemove
-}: {
-  topic: HotTopic;
-  onAddKeyword: () => void;
-  onCreateProduct: () => void;
-  onRemove: () => void;
-}) {
-  const score = getHotScore(topic);
-  const decision = getHotDecision(score);
-  const idea = getProductIdea(topic);
-  const searchUrl = `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(topic.word)}`;
-
-  return (
-    <div className="rounded-lg border border-line bg-white p-3">
-      <div className="grid grid-cols-[1fr_90px_110px] gap-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <strong className="text-base">{topic.word}</strong>
-            <Badge tone="blue">{topic.category}</Badge>
-            <Badge tone={decision.tone}>{decision.label}</Badge>
-          </div>
-          <div className="mt-2 text-sm text-slate-600">{decision.text}</div>
-          <div className="mt-2 text-xs text-slate-500">{topic.note || "暂无备注"}</div>
-        </div>
-        <div className="rounded-md bg-slate-50 p-3 text-center">
-          <div className="text-xs text-slate-500">选品分</div>
-          <div className="mt-1 text-3xl font-semibold text-ink">{score}</div>
-        </div>
-        <div className="grid gap-2">
-          <a href={searchUrl} target="_blank" className="rounded-md border border-line px-3 py-2 text-center text-sm hover:bg-slate-50">
-            搜小红书
-          </a>
-          <button onClick={onRemove} className="rounded-md border border-line px-3 py-2 text-sm text-slate-500 hover:bg-slate-50">
-            移除
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-3 grid grid-cols-5 gap-2 text-sm">
-        <MiniStat label="点赞/收藏" value={topic.likes} />
-        <MiniStat label="评论" value={topic.comments} />
-        <MiniStat label="同类商品" value={topic.competitors} />
-        <MiniStat label="价格" value={`¥${topic.price}`} />
-        <MiniStat label="制作难度" value={`${topic.difficulty}/5`} />
-      </div>
-
-      <div className="mt-3 grid grid-cols-[1fr_120px_120px] items-center gap-3 rounded-md bg-slate-50 p-3">
-        <div className="text-sm">
-          <div className="font-medium">建议商品：{idea.name}</div>
-          <div className="mt-1 text-slate-600">{idea.title}</div>
-          <div className="mt-1 text-xs text-slate-500">交付：{idea.delivery}</div>
-        </div>
-        <button onClick={onAddKeyword} className="rounded-md border border-line bg-white px-3 py-2 text-sm hover:bg-slate-50">
-          加关键词
-        </button>
-        <button onClick={onCreateProduct} className="rounded-md bg-ink px-3 py-2 text-sm text-white hover:bg-slate-800">
-          生成商品
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function ProductCaseCard({
-  item,
-  onCreate
-}: {
-  item: (typeof productCases)[number];
-  onCreate: () => void;
-}) {
-  const copyText = [
-    `商品：${item.product}`,
-    `标题：${item.title}`,
-    `价格：${item.price}`,
-    `交付：${item.delivery}`,
-    `内容包：${item.package}`,
-    `小红书笔记标题：${item.noteTitle}`,
-    `风险提醒：${item.risk}`
-  ].join("\n");
-
-  const copy = () => {
-    void navigator.clipboard?.writeText(copyText);
-  };
-
-  return (
-    <div className="rounded-lg border border-line bg-white p-3">
-      <div className="grid grid-cols-[1fr_128px] gap-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <strong className="text-base">{item.product}</strong>
-            <Badge tone="blue">{item.topic}</Badge>
-            <Badge tone="green">{item.price}</Badge>
-          </div>
-          <div className="mt-2 rounded-md bg-slate-50 px-3 py-2 text-sm font-medium">{item.title}</div>
-        </div>
-        <div className="grid gap-2">
-          <button onClick={copy} className="rounded-md border border-line px-3 py-2 text-sm hover:bg-slate-50">
-            复制案例
-          </button>
-          <button onClick={onCreate} className="rounded-md bg-ink px-3 py-2 text-sm text-white hover:bg-slate-800">
-            生成商品
-          </button>
-        </div>
-      </div>
-      <div className="mt-3 grid grid-cols-[1fr_1fr_1fr] gap-2 text-sm">
-        <div className="rounded-md border border-line p-3">
-          <div className="text-xs text-slate-500">内容包</div>
-          <div className="mt-1 leading-5">{item.package}</div>
-        </div>
-        <div className="rounded-md border border-line p-3">
-          <div className="text-xs text-slate-500">小红书笔记选题</div>
-          <div className="mt-1 leading-5">{item.noteTitle}</div>
-        </div>
-        <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
-          <div className="text-xs text-amber-700">风险提醒</div>
-          <div className="mt-1 leading-5 text-amber-900">{item.risk}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ResearchFindingCard({ item }: { item: (typeof liveResearchFindings)[number] }) {
-  return (
-    <div className="rounded-lg border border-line bg-white p-3">
-      <div className="grid grid-cols-[1fr_92px_80px] items-start gap-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <strong className="text-base">{item.direction}</strong>
-            <Badge tone={item.decision === "可做" ? "green" : "amber"}>{item.decision}</Badge>
-            <Badge tone="blue">优先级 {item.priority}</Badge>
-          </div>
-          <div className="mt-2 grid gap-2 text-sm">
-            <div className="rounded-md bg-rose-50 px-3 py-2 text-rose-900">
-              <span className="font-medium">小红书信号：</span>{item.xhsSignals}
-            </div>
-            <div className="rounded-md bg-blue-50 px-3 py-2 text-blue-900">
-              <span className="font-medium">电商核验：</span>{item.shopSignals}
-            </div>
-            <div className="rounded-md bg-slate-50 px-3 py-2">
-              <span className="font-medium">建议商品：</span>{item.product}
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={() => setShowModal(false)}
+                className="bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] text-gray-300 text-sm px-4 py-2 rounded-md transition-colors">
+                取消
+              </button>
+              <button onClick={saveProduct}
+                className="bg-[#238636] hover:bg-[#2ea043] border border-[#2ea043] text-white text-sm px-4 py-2 rounded-md transition-colors">
+                {editingId !== null ? '保存修改' : '添加'}
+              </button>
             </div>
           </div>
         </div>
-        <div className="rounded-md bg-slate-50 p-3 text-center">
-          <div className="text-xs text-slate-500">选品优先级</div>
-          <div className="mt-1 text-3xl font-semibold">{item.priority}</div>
-        </div>
-        <div className="h-full rounded-md bg-ink text-white">
-          <div className="grid h-full place-items-center text-sm">已核验</div>
-        </div>
-      </div>
-    </div>
-  );
-}
+      )}
 
-function TrendTopicCard({
-  item,
-  onCreate,
-  onRemove
-}: {
-  item: TrendTopic;
-  onCreate: () => void;
-  onRemove: () => void;
-}) {
-  const copyText = [
-    `热点：${item.hotword}`,
-    `来源：${item.source}`,
-    `适用场景：${item.scene}`,
-    `目标人群：${item.audience}`,
-    `产品类型：${item.productType}`,
-    `交付内容：${item.deliverables}`,
-    `商品标题：${item.title}`,
-    `价格：${item.price}`,
-    `素材搜集：${item.materialPlan}`,
-    `风险：${item.risk}`
-  ].join("\n");
-
-  const copy = () => {
-    void navigator.clipboard?.writeText(copyText);
-  };
-
-  return (
-    <div className="rounded-lg border border-line bg-white p-3">
-      <div className="grid grid-cols-[1fr_96px_108px] items-start gap-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <strong className="text-base">{item.hotword}</strong>
-            <Badge tone="blue">{item.source}</Badge>
-            <Badge tone={item.priority >= 85 ? "green" : item.priority >= 70 ? "blue" : "amber"}>优先级 {item.priority}</Badge>
-          </div>
-          <div className="mt-2 text-sm text-slate-600">{item.scene} / {item.audience}</div>
-          <div className="mt-2 rounded-md bg-slate-50 px-3 py-2 text-sm font-medium">{item.title}</div>
-        </div>
-        <div className="rounded-md bg-slate-50 p-3 text-center">
-          <div className="text-xs text-slate-500">建议价格</div>
-          <div className="mt-2 font-semibold">{item.price}</div>
-        </div>
-        <div className="grid gap-2">
-          <button onClick={copy} className="rounded-md border border-line px-3 py-2 text-sm hover:bg-slate-50">复制方案</button>
-          <button onClick={onCreate} className="rounded-md bg-ink px-3 py-2 text-sm text-white hover:bg-slate-800">生成商品</button>
-          <button onClick={onRemove} className="rounded-md border border-line px-3 py-2 text-sm text-slate-500 hover:bg-slate-50">移除</button>
-        </div>
-      </div>
-      <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
-        <div className="rounded-md border border-line p-3">
-          <div className="text-xs text-slate-500">交付内容</div>
-          <div className="mt-1 leading-5">{item.deliverables}</div>
-        </div>
-        <div className="rounded-md border border-line p-3">
-          <div className="text-xs text-slate-500">素材搜集方向</div>
-          <div className="mt-1 leading-5">{item.materialPlan}</div>
-        </div>
-        <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
-          <div className="text-xs text-amber-700">风险提醒</div>
-          <div className="mt-1 leading-5 text-amber-900">{item.risk}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MiniStat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-md border border-line bg-white px-3 py-2">
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className="mt-1 font-semibold">{value}</div>
-    </div>
-  );
-}
-
-function ProgressRingLight({ value }: { value: number }) {
-  const degrees = Math.max(0, Math.min(100, value)) * 3.6;
-  return (
-    <div
-      className="grid h-24 w-24 shrink-0 place-items-center rounded-full"
-      style={{ background: `conic-gradient(#2563eb ${degrees}deg, #e2e8f0 0deg)` }}
-    >
-      <div className="grid h-16 w-16 place-items-center rounded-full bg-white text-center">
-        <div>
-          <div className="text-xl font-semibold">{value}%</div>
-          <div className="text-[10px] text-slate-500">SOP</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SopStepRow({
-  index,
-  step,
-  record,
-  onToggle,
-  onOutputChange,
-  onOpen
-}: {
-  index: number;
-  step: (typeof sop)[number];
-  record: SopRecord;
-  onToggle: () => void;
-  onOutputChange: (value: string) => void;
-  onOpen: () => void;
-}) {
-  return (
-    <div className={`rounded-lg border p-3 text-sm ${record.done ? "border-emerald-200 bg-emerald-50/40" : "border-line bg-white"}`}>
-      <div className="grid grid-cols-[44px_1fr_170px_96px] items-center gap-3">
-        <button
-          onClick={onToggle}
-          className={`grid h-9 w-9 place-items-center rounded-md border ${
-            record.done ? "border-emerald-300 bg-emerald-100 text-emerald-700" : "border-line bg-slate-50 text-slate-500"
-          }`}
-          title="切换完成状态"
-        >
-          {record.done ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
-        </button>
-        <div>
-          <div className="flex items-center gap-2">
-            <strong>{step.title}</strong>
-            <Badge tone={record.done ? "green" : index < 5 ? "blue" : "amber"}>{record.done ? "已完成" : index < 5 ? "基础" : "待执行"}</Badge>
-          </div>
-          <div className="mt-1 text-slate-600">{step.body}</div>
-        </div>
-        <div className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
-          <div className="font-medium text-ink">本节产出</div>
-          <div className="mt-1">{step.output}</div>
-        </div>
-        <button onClick={onOpen} className="rounded-md border border-line bg-white px-3 py-2 text-sm hover:bg-slate-50">
-          去执行
-        </button>
-      </div>
-      <textarea
-        value={record.output}
-        onChange={(event) => onOutputChange(event.target.value)}
-        placeholder="记录你这一步实际做出来的东西，比如：新增了哪些词、筛掉了哪些词、上架了哪个商品..."
-        className="mt-3 min-h-16 w-full resize-y rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
-      />
-    </div>
-  );
-}
-
-function KeywordTable({ keywords, setKeywords }: { keywords: Keyword[]; setKeywords: (value: Keyword[]) => void }) {
-  return (
-    <DataTable headers={["关键词", "来源", "方向", "价格", "付款/想要", "评价", "是否保留", "备注"]}>
-      {keywords.map((item) => (
-        <tr key={item.id}>
-          <td className="font-medium">{item.word}</td>
-          <td>{item.source}</td>
-          <td>{item.direction}</td>
-          <td>{item.price}</td>
-          <td>{item.payCount}</td>
-          <td>{item.reviews}</td>
-          <td>
-            <button onClick={() => setKeywords(keywords.map((kw) => kw.id === item.id ? { ...kw, keep: !kw.keep } : kw))}>
-              <Badge tone={item.keep ? "green" : "gray"}>{item.keep ? "保留" : "待定"}</Badge>
-            </button>
-          </td>
-          <td>{item.note}</td>
-        </tr>
-      ))}
-    </DataTable>
-  );
-}
-
-function TaskList({ tasks, setTasks, compact = false }: { tasks: Task[]; setTasks: (value: Task[]) => void; compact?: boolean }) {
-  return (
-    <div className={`grid ${compact ? "grid-cols-2" : "grid-cols-3"} gap-2`}>
-      {tasks.map((item) => (
-        <label key={item.id} className="flex cursor-pointer items-center gap-2 rounded-md border border-line px-3 py-2 text-sm hover:bg-slate-50">
-          <input
-            type="checkbox"
-            checked={item.done}
-            onChange={() => setTasks(tasks.map((task) => task.id === item.id ? { ...task, done: !task.done } : task))}
-          />
-          <span className={item.done ? "text-slate-400 line-through" : ""}>{item.text}</span>
-        </label>
-      ))}
+      {/* Toast */}
+      {toast.show && (
+        <div className={`fixed bottom-6 right-6 px-4 py-2.5 rounded-lg text-sm z-50 border ${
+          toast.type === 'error' ? 'bg-[#3a1a1a] border-[#f85149] text-[#f85149]' : 'bg-[#1a3a2a] border-[#2ea043] text-[#3fb950]'
+        }`}>{toast.msg}</div>
+      )}
     </div>
   );
 }

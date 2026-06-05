@@ -1,16 +1,12 @@
-import type { Metadata } from "next";
-import "./globals.css";
+import type { Metadata } from 'next';
+import './globals.css';
 
 export const metadata: Metadata = {
-  title: "虚拟项目运营工作台",
-  description: "淘宝/闲鱼虚拟项目执行系统"
+  title: '选品助手',
+  description: '虚拟商品选品记录 & 热点话题分析',
 };
 
-export default function RootLayout({
-  children
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh-CN">
       <body>{children}</body>
