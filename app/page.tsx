@@ -6,6 +6,7 @@ import {
   Check,
   ChevronDown,
   Copy,
+  Download,
   ExternalLink,
   Flame,
   Globe2,
@@ -23,6 +24,7 @@ import {
   Wand2,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import JSZip from 'jszip';
 
 type ProductStatus = '考虑中' | '已选' | '已放弃';
 
@@ -384,6 +386,76 @@ export default function Home() {
     showToast(`已上传 ${uploaded.length} 张详情图，链接已复制`);
   };
 
+  const copyListingInfo = async (product: Product) => {
+    const title = product.optimizedTitles?.[0] || product.name;
+    const lines = [
+      `标题：${title}`,
+      `原始标题：${product.name}`,
+      product.price && `价格：${product.price}`,
+      product.url && `链接：${product.url}`,
+      product.imageUrl && `原主图：${product.imageUrl}`,
+      product.githubMainImage && `GitHub主图：${product.githubMainImage}`,
+      product.detailImages?.length && `原详情图：\n${product.detailImages.join('\n')}`,
+      product.githubDetailImages?.length && `GitHub详情图：\n${product.githubDetailImages.join('\n')}`,
+      product.processedMainImage && `加工后主图：已保存到资料库`,
+      product.processedDetailImages?.length && `加工后详情图：${product.processedDetailImages.length} 张`,
+      (product.detailText || product.notes) && `详情/备注：${product.detailText || product.notes}`,
+    ].filter(Boolean).join('\n\n');
+    await navigator.clipboard.writeText(lines);
+    showToast('上架资料已复制');
+  };
+
+  const fetchImageBlob = async (image: string) => {
+    const url = image.startsWith('data:image') ? image : `/api/proxy-image?url=${encodeURIComponent(image)}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('图片下载失败');
+    return res.blob();
+  };
+
+  const downloadProductZip = async (product: Product) => {
+    try {
+      const zip = new JSZip();
+      const safeName = product.name.replace(/[\\/:*?"<>|]/g, '').slice(0, 36) || '商品素材';
+      const listingText = [
+        `标题：${product.optimizedTitles?.[0] || product.name}`,
+        `原始标题：${product.name}`,
+        `链接：${product.url}`,
+        `价格：${product.price}`,
+        `分类：${product.category}`,
+        `备注：${product.notes}`,
+        `详情：${product.detailText || ''}`,
+      ].join('\n');
+
+      zip.file('上架资料.txt', listingText);
+
+      const addImage = async (folder: string, name: string, image?: string) => {
+        if (!image) return;
+        const blob = await fetchImageBlob(image);
+        const ext = blob.type.includes('png') ? 'png' : blob.type.includes('webp') ? 'webp' : 'jpg';
+        zip.file(`${folder}/${name}.${ext}`, blob);
+      };
+
+      await addImage('原始素材', '主图', product.imageUrl);
+      for (const [index, image] of (product.detailImages || []).entries()) {
+        await addImage('原始素材', `详情图-${index + 1}`, image);
+      }
+      await addImage('加工后素材', '加工后主图', product.processedMainImage);
+      for (const [index, image] of (product.processedDetailImages || []).entries()) {
+        await addImage('加工后素材', `加工后详情图-${index + 1}`, image);
+      }
+
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${safeName}-上架素材包.zip`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      showToast('素材包已生成');
+    } catch {
+      showToast('素材包下载失败，可能有图片链接失效', 'error');
+    }
+  };
+
   const setProcessedMainImage = async (product: Product, file: File) => {
     try {
       const image = await readImageFile(file);
@@ -621,6 +693,8 @@ export default function Home() {
                 onUpdate={updateProduct}
                 onUploadMain={uploadMainToGitHub}
                 onUploadDetails={uploadDetailsToGitHub}
+                onCopyListing={copyListingInfo}
+                onDownloadZip={downloadProductZip}
               />
             </div>
           ) : (
@@ -830,6 +904,8 @@ function ProductInspector({
   onProcessedDetails,
   onUploadMain,
   onUploadDetails,
+  onCopyListing,
+  onDownloadZip,
 }: {
   product?: Product;
   optimizing: boolean;
@@ -839,6 +915,8 @@ function ProductInspector({
   onUpdate: (id: number, patch: Partial<Product>) => void;
   onUploadMain: (product: Product) => void;
   onUploadDetails: (product: Product) => void;
+  onCopyListing: (product: Product) => void;
+  onDownloadZip: (product: Product) => void;
 }) {
   if (!product) {
     return (
@@ -858,6 +936,16 @@ function ProductInspector({
       </div>
       <h2 className="text-xl font-black leading-snug">{product.name}</h2>
       {product.url && <a href={product.url} target="_blank" rel="noreferrer" className="mt-3 flex items-center gap-2 rounded-2xl bg-[#f6f9ff] px-3 py-2 text-xs font-bold text-[#2f6fe4]"><LinkIcon size={14} />查看原链接<ExternalLink size={13} /></a>}
+      <div className="mt-5 grid grid-cols-2 gap-2">
+        <button onClick={() => onCopyListing(product)} className="flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#101828] text-sm font-black text-white">
+          <Copy size={16} />
+          复制上架资料
+        </button>
+        <button onClick={() => onDownloadZip(product)} className="flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#eef4ff] text-sm font-black text-[#2f6fe4]">
+          <Download size={16} />
+          下载素材包
+        </button>
+      </div>
       <div className="mt-5 rounded-3xl bg-[#eef4ff] p-4">
         <div className="mb-3 text-sm font-black">GitHub 原图链接</div>
         <div className="grid gap-2">
@@ -887,9 +975,18 @@ function ProductInspector({
         <div className="mb-2 flex items-center gap-2 text-sm font-black"><Tag size={16} />详情摘要</div>
         <p className="text-sm leading-6 text-[#667085]">{product.detailText || product.notes || '暂无详情摘要'}</p>
       </div>
+      {product.imageUrl && (
+        <button onClick={() => navigator.clipboard.writeText(product.imageUrl || '')} className="mt-3 flex w-full items-center gap-2 rounded-2xl bg-[#f6f9ff] px-3 py-2 text-left text-xs font-bold text-[#667085]">
+          <Copy size={13} />
+          <span className="truncate">复制原主图链接：{product.imageUrl}</span>
+        </button>
+      )}
       {product.detailImages && product.detailImages.length > 0 && (
         <div className="mt-5">
-          <div className="mb-3 text-sm font-black">详情图</div>
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-sm font-black">详情图</div>
+            <button onClick={() => navigator.clipboard.writeText((product.detailImages || []).join('\n'))} className="text-xs font-bold text-[#2f6fe4]">复制全部链接</button>
+          </div>
           <div className="grid grid-cols-3 gap-2">
             {product.detailImages.slice(0, 9).map(image => <img key={image} src={image} alt="" className="aspect-square rounded-2xl object-cover" />)}
           </div>
