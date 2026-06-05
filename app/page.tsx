@@ -2,22 +2,24 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
-  BarChart3,
   Bot,
   Check,
   ChevronDown,
+  Copy,
   ExternalLink,
-  FileText,
   Flame,
+  Globe2,
+  Image as ImageIcon,
   LayoutDashboard,
   Link as LinkIcon,
-  Menu,
-  Plus,
+  Loader2,
+  PackagePlus,
   RefreshCw,
   Search,
   Sparkles,
   Tag,
   Trash2,
+  Wand2,
 } from 'lucide-react';
 
 type ProductStatus = '考虑中' | '已选' | '已放弃';
@@ -31,6 +33,10 @@ interface Product {
   notes: string;
   status: ProductStatus;
   createdAt: string;
+  imageUrl?: string;
+  detailText?: string;
+  detailImages?: string[];
+  optimizedTitles?: string[];
 }
 
 interface TrendItem {
@@ -43,6 +49,7 @@ interface TrendItem {
 interface TrendsData {
   [platform: string]: TrendItem[] | string | undefined;
   _updatedAt?: string;
+  _source?: string;
 }
 
 const STORAGE_KEY = 'xuanpin_products';
@@ -61,26 +68,23 @@ function saveProducts(products: Product[]) {
 }
 
 const statusStyles: Record<ProductStatus, string> = {
-  考虑中: 'bg-[#eef4ff] text-[#3168d8]',
-  已选: 'bg-[#e7f8ef] text-[#168044]',
-  已放弃: 'bg-[#fff0ef] text-[#d92d20]',
+  考虑中: 'bg-amber-50 text-amber-700 ring-amber-200',
+  已选: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  已放弃: 'bg-rose-50 text-rose-700 ring-rose-200',
 };
-
-const moduleCards = [
-  { title: 'AI 选品库', desc: '记录商品灵感与价格状态', color: 'from-[#6ea8ff] to-[#9ad7ff]' },
-  { title: '热点分析', desc: '从热榜提取可卖方向', color: 'from-[#9b8cff] to-[#f4b4ff]' },
-  { title: 'AI 延伸', desc: '生成虚拟商品建议', color: 'from-[#69dbb8] to-[#b6f5d7]' },
-];
 
 export default function Home() {
   const [tab, setTab] = useState<'products' | 'trends'>('products');
-
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [taobaoUrl, setTaobaoUrl] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [optimizingId, setOptimizingId] = useState<number | null>(null);
+  const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
   const [form, setForm] = useState<Omit<Product, 'id' | 'createdAt'>>({
     name: '',
     url: '',
@@ -88,25 +92,34 @@ export default function Home() {
     category: '',
     notes: '',
     status: '考虑中',
+    imageUrl: '',
+    detailText: '',
+    detailImages: [],
+    optimizedTitles: [],
   });
 
   const [trends, setTrends] = useState<TrendsData>({});
   const [trendsLoading, setTrendsLoading] = useState(false);
   const [trendsUpdatedAt, setTrendsUpdatedAt] = useState('');
-
   const [analyzeKeyword, setAnalyzeKeyword] = useState('');
   const [analyzeResult, setAnalyzeResult] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
-
   const [toast, setToast] = useState<{ show: boolean; msg: string; type: string }>({ show: false, msg: '', type: '' });
 
   useEffect(() => {
-    setProducts(loadProducts());
+    const saved = loadProducts();
+    setProducts(saved);
+    setSelectedProductId(saved[0]?.id || null);
   }, []);
 
   const showToast = (msg: string, type = '') => {
     setToast({ show: true, msg, type });
-    setTimeout(() => setToast({ show: false, msg: '', type: '' }), 3000);
+    setTimeout(() => setToast({ show: false, msg: '', type: '' }), 2800);
+  };
+
+  const persistProducts = (next: Product[]) => {
+    setProducts(next);
+    saveProducts(next);
   };
 
   const filteredProducts = products.filter(p => {
@@ -117,16 +130,28 @@ export default function Home() {
   });
 
   const categories = [...new Set(products.map(p => p.category).filter(Boolean))];
+  const selectedProduct = products.find(p => p.id === selectedProductId) || products[0];
 
   const openAddModal = () => {
     setEditingId(null);
-    setForm({ name: '', url: '', price: '', category: '', notes: '', status: '考虑中' });
+    setForm({ name: '', url: '', price: '', category: '', notes: '', status: '考虑中', imageUrl: '', detailText: '', detailImages: [], optimizedTitles: [] });
     setShowModal(true);
   };
 
   const openEditModal = (p: Product) => {
     setEditingId(p.id);
-    setForm({ name: p.name, url: p.url, price: p.price, category: p.category, notes: p.notes, status: p.status });
+    setForm({
+      name: p.name,
+      url: p.url,
+      price: p.price,
+      category: p.category,
+      notes: p.notes,
+      status: p.status,
+      imageUrl: p.imageUrl || '',
+      detailText: p.detailText || '',
+      detailImages: p.detailImages || [],
+      optimizedTitles: p.optimizedTitles || [],
+    });
     setShowModal(true);
   };
 
@@ -135,40 +160,94 @@ export default function Home() {
       showToast('请填写商品名称', 'error');
       return;
     }
-
-    let updated: Product[];
-    if (editingId !== null) {
-      updated = products.map(p => (p.id === editingId ? { ...p, ...form } : p));
-      showToast('修改成功');
-    } else {
-      updated = [{ id: Date.now(), ...form, createdAt: new Date().toLocaleString('zh-CN') }, ...products];
-      showToast('添加成功');
-    }
-
-    setProducts(updated);
-    saveProducts(updated);
+    const next = editingId !== null
+      ? products.map(p => (p.id === editingId ? { ...p, ...form } : p))
+      : [{ id: Date.now(), ...form, createdAt: new Date().toLocaleString('zh-CN') }, ...products];
+    persistProducts(next);
+    setSelectedProductId(editingId || next[0].id);
     setShowModal(false);
+    showToast(editingId !== null ? '修改成功' : '添加成功');
+  };
+
+  const importTaobao = async () => {
+    if (!taobaoUrl.trim()) {
+      showToast('请先粘贴淘宝链接', 'error');
+      return;
+    }
+    setImporting(true);
+    try {
+      const res = await fetch('/api/taobao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: taobaoUrl.trim() }),
+      });
+      const data = await res.json();
+      const item = data.product || {};
+      const product: Product = {
+        id: Date.now(),
+        name: item.title || '淘宝商品',
+        url: taobaoUrl.trim(),
+        price: '',
+        category: '淘宝采集',
+        notes: data.warning || '已从淘宝链接自动采集',
+        status: '考虑中',
+        createdAt: new Date().toLocaleString('zh-CN'),
+        imageUrl: item.mainImage || '',
+        detailText: item.detailText || '',
+        detailImages: item.detailImages || [],
+        optimizedTitles: [],
+      };
+      const next = [product, ...products];
+      persistProducts(next);
+      setSelectedProductId(product.id);
+      setTaobaoUrl('');
+      showToast(data.success ? '已自动保存淘宝商品' : '已保存链接，可手动补充信息');
+    } catch {
+      showToast('淘宝链接导入失败', 'error');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const optimizeTitle = async (product: Product) => {
+    setOptimizingId(product.id);
+    try {
+      const res = await fetch('/api/title-optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: product.name, detail: product.detailText || product.notes }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        showToast(data.error || '标题优化失败', 'error');
+        return;
+      }
+      const next = products.map(p => (p.id === product.id ? { ...p, optimizedTitles: data.titles } : p));
+      persistProducts(next);
+      showToast('标题优化完成');
+    } catch {
+      showToast('标题优化失败', 'error');
+    } finally {
+      setOptimizingId(null);
+    }
   };
 
   const deleteProduct = (id: number) => {
     if (!confirm('确定删除这条选品吗？')) return;
-    const updated = products.filter(p => p.id !== id);
-    setProducts(updated);
-    saveProducts(updated);
+    const next = products.filter(p => p.id !== id);
+    persistProducts(next);
+    setSelectedProductId(next[0]?.id || null);
     showToast('已删除');
   };
 
   const quickStatus = (id: number, status: ProductStatus) => {
-    const updated = products.map(p => (p.id === id ? { ...p, status } : p));
-    setProducts(updated);
-    saveProducts(updated);
+    persistProducts(products.map(p => (p.id === id ? { ...p, status } : p)));
   };
 
   const loadTrends = useCallback(async (forceRefresh = false) => {
     setTrendsLoading(true);
     try {
-      const url = forceRefresh ? '/api/trends?refresh=1' : '/api/trends';
-      const res = await fetch(url);
+      const res = await fetch(forceRefresh ? '/api/trends?refresh=1' : '/api/trends');
       const data = await res.json();
       setTrends(data);
       setTrendsUpdatedAt(data._updatedAt || '');
@@ -191,7 +270,6 @@ export default function Home() {
     setTab('trends');
     setAnalyzing(true);
     setAnalyzeResult('');
-
     try {
       const res = await fetch('/api/analyze', {
         method: 'POST',
@@ -216,436 +294,217 @@ export default function Home() {
   const trendsEntries = Object.entries(trends).filter(
     (entry): entry is [string, TrendItem[]] => Array.isArray(entry[1])
   );
-  const trendSource = typeof trends._source === 'string' ? trends._source : '直连平台';
-
-  const stats = [
-    { label: '全部', value: products.length },
-    { label: '考虑中', value: products.filter(p => p.status === '考虑中').length },
-    { label: '已选', value: products.filter(p => p.status === '已选').length },
-    { label: '放弃', value: products.filter(p => p.status === '已放弃').length },
-  ];
+  const trendSource = typeof trends._source === 'string' ? trends._source : '聚合平台';
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_20%_5%,#d8e7ff_0,#eaf3ff_28%,#f8fbff_62%,#edf5ff_100%)] text-[#172033]">
-      <div className="pointer-events-none fixed inset-0 opacity-70">
-        <div className="absolute left-0 top-0 h-[420px] w-[520px] rounded-full bg-[#9fc5ff]/45 blur-3xl" />
-        <div className="absolute right-[-120px] top-24 h-[360px] w-[480px] rounded-full bg-[#c7b8ff]/35 blur-3xl" />
-        <div className="absolute bottom-[-160px] left-1/3 h-[360px] w-[560px] rounded-full bg-[#b7f0ff]/45 blur-3xl" />
-      </div>
-
-      <div className="relative mx-auto w-full max-w-[1760px] px-4 py-6 sm:px-6 xl:px-8">
-        <section className="mb-8">
-          <div className="mb-4 inline-flex rounded-[8px] bg-[#dbe9ff] px-4 py-2 text-sm font-semibold text-[#3b79df] shadow-sm">
-            热点选品工作台
+    <main className="min-h-screen bg-[#eef5ff] text-[#102033]">
+      <div className="fixed inset-0 bg-[radial-gradient(circle_at_15%_0%,#cfe0ff_0,#edf5ff_28%,transparent_55%),radial-gradient(circle_at_85%_10%,#d9d5ff_0,transparent_34%)]" />
+      <div className="relative flex min-h-screen">
+        <aside className="hidden w-72 shrink-0 border-r border-white/70 bg-white/70 p-6 backdrop-blur-xl lg:block">
+          <div className="mb-10 flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#2f6fe4] text-white shadow-lg shadow-blue-300/40">
+              <Sparkles size={22} />
+            </div>
+            <div>
+              <div className="text-lg font-black">跨境选品助手</div>
+              <div className="text-xs text-[#667085]">热点采集与虚拟商品运营</div>
+            </div>
           </div>
-          <h1 className="text-4xl font-black tracking-normal text-[#101828] sm:text-6xl">
-            <span className="text-[#2f80ed]">跨境</span>选品助手
-          </h1>
-          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-[#667085]">
-            聚合全网热点，快速发现适合延伸成教程、素材、模板、工具和知识付费产品的选题。
-          </p>
-        </section>
+          <nav className="space-y-2">
+            <NavButton active={tab === 'products'} icon={<LayoutDashboard size={18} />} label="选品工作台" onClick={() => setTab('products')} />
+            <NavButton active={tab === 'trends'} icon={<Flame size={18} />} label="热榜分析" onClick={handleTabTrends} />
+            <button onClick={openAddModal} className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#2f6fe4] px-4 py-3 text-sm font-bold text-white shadow-lg shadow-blue-300/30">
+              <PackagePlus size={18} />
+              手动新增选品
+            </button>
+          </nav>
+        </aside>
 
-        <section className="overflow-hidden rounded-[8px] border border-white/70 bg-white/78 shadow-[0_24px_80px_rgba(80,120,190,0.25)] backdrop-blur-xl">
-          <div className="flex min-h-[760px]">
-            <aside className="hidden w-52 border-r border-[#e8eef8] bg-white/72 p-4 lg:block">
-              <div className="mb-8 flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-gradient-to-br from-[#4f8cff] to-[#8c6dff] text-white">
-                  <Sparkles size={17} />
-                </div>
-                <span className="font-bold">AI选品助手</span>
+        <section className="min-w-0 flex-1 p-4 sm:p-6 xl:p-8">
+          <header className="mb-6 flex flex-col gap-4 rounded-[28px] border border-white/80 bg-white/72 p-5 shadow-xl shadow-blue-100/60 backdrop-blur-xl xl:flex-row xl:items-center xl:justify-between">
+            <div>
+              <div className="mb-2 inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-[#2f6fe4]">
+                AI PRODUCT OPS
+              </div>
+              <h1 className="text-3xl font-black tracking-normal text-[#111827] sm:text-4xl">虚拟产品选品工作台</h1>
+              <p className="mt-2 text-sm text-[#667085]">导入淘宝竞品，保存主图详情，用 AI 优化合规高曝光标题。</p>
+            </div>
+            <div className="flex rounded-2xl bg-[#eef4ff] p-1">
+              <button onClick={() => setTab('products')} className={`rounded-xl px-4 py-2 text-sm font-bold ${tab === 'products' ? 'bg-white text-[#2f6fe4] shadow-sm' : 'text-[#667085]'}`}>选品</button>
+              <button onClick={handleTabTrends} className={`rounded-xl px-4 py-2 text-sm font-bold ${tab === 'trends' ? 'bg-white text-[#2f6fe4] shadow-sm' : 'text-[#667085]'}`}>热榜</button>
+            </div>
+          </header>
+
+          {tab === 'products' ? (
+            <div className="grid min-h-[calc(100vh-170px)] gap-6 xl:grid-cols-[minmax(0,1fr)_460px]">
+              <div className="space-y-6">
+                <section className="rounded-[30px] border border-white/80 bg-white p-6 shadow-xl shadow-blue-100/50">
+                  <div className="mb-5 flex items-start justify-between gap-4">
+                    <div>
+                      <h2 className="text-2xl font-black">淘宝链接导入</h2>
+                      <p className="mt-1 text-sm text-[#667085]">粘贴商品链接后自动保存标题、主图和详情图，再用 AI 生成三个合规标题版本。</p>
+                    </div>
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#2f6fe4]">
+                      <Globe2 size={23} />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-3 rounded-3xl bg-[#f6f9ff] p-3 md:flex-row">
+                    <input
+                      value={taobaoUrl}
+                      onChange={e => setTaobaoUrl(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && importTaobao()}
+                      placeholder="粘贴淘宝商品链接，例如 https://item.taobao.com/item.htm?id=..."
+                      className="h-13 min-h-13 flex-1 rounded-2xl border border-transparent bg-white px-4 text-sm outline-none focus:border-[#9cc3ff]"
+                    />
+                    <button onClick={importTaobao} disabled={importing} className="flex h-13 items-center justify-center gap-2 rounded-2xl bg-[#2f6fe4] px-6 text-sm font-black text-white disabled:opacity-60">
+                      {importing ? <Loader2 className="animate-spin" size={18} /> : <PackagePlus size={18} />}
+                      自动保存
+                    </button>
+                  </div>
+                </section>
+
+                <section className="rounded-[30px] border border-white/80 bg-white p-5 shadow-xl shadow-blue-100/50">
+                  <div className="mb-4 flex flex-col gap-3 md:flex-row">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#98a2b3]" size={17} />
+                      <input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索商品标题或备注" className="h-12 w-full rounded-2xl bg-[#f6f9ff] pl-11 pr-4 text-sm outline-none" />
+                    </div>
+                    <FilterSelect value={filterStatus} onChange={setFilterStatus} options={['考虑中', '已选', '已放弃']} placeholder="全部状态" />
+                    <FilterSelect value={filterCategory} onChange={setFilterCategory} options={categories} placeholder="全部分类" />
+                  </div>
+                  <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+                    {filteredProducts.map(product => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        active={selectedProduct?.id === product.id}
+                        optimizing={optimizingId === product.id}
+                        onSelect={() => setSelectedProductId(product.id)}
+                        onEdit={() => openEditModal(product)}
+                        onDelete={() => deleteProduct(product.id)}
+                        onOptimize={() => optimizeTitle(product)}
+                        onStatus={status => quickStatus(product.id, status)}
+                      />
+                    ))}
+                  </div>
+                  {filteredProducts.length === 0 && (
+                    <div className="rounded-3xl border border-dashed border-[#c8d8ef] py-20 text-center text-sm text-[#667085]">
+                      还没有选品，先粘贴淘宝链接自动导入。
+                    </div>
+                  )}
+                </section>
               </div>
 
-              <nav className="space-y-2 text-sm">
-                <button
-                  onClick={() => setTab('products')}
-                  className={`flex w-full items-center gap-2 rounded-[8px] px-3 py-2.5 text-left font-medium transition ${
-                    tab === 'products' ? 'bg-[#f0f5ff] text-[#2f6fe4]' : 'text-[#667085] hover:bg-[#f7f9fd]'
-                  }`}
-                >
-                  <LayoutDashboard size={16} />
-                  首页
-                </button>
-                <button
-                  onClick={handleTabTrends}
-                  className={`flex w-full items-center gap-2 rounded-[8px] px-3 py-2.5 text-left font-medium transition ${
-                    tab === 'trends' ? 'bg-[#f0f5ff] text-[#2f6fe4]' : 'text-[#667085] hover:bg-[#f7f9fd]'
-                  }`}
-                >
-                  <Flame size={16} />
-                  AI 热榜
-                </button>
-                <button
-                  onClick={openAddModal}
-                  className="flex w-full items-center gap-2 rounded-[8px] px-3 py-2.5 text-left font-medium text-[#667085] transition hover:bg-[#f7f9fd]"
-                >
-                  <FileText size={16} />
-                  选品记录
-                </button>
-                <button
-                  onClick={() => doAnalyze()}
-                  className="flex w-full items-center gap-2 rounded-[8px] px-3 py-2.5 text-left font-medium text-[#667085] transition hover:bg-[#f7f9fd]"
-                >
-                  <Bot size={16} />
-                  AI 分析
-                </button>
-              </nav>
-            </aside>
-
-            <div className="min-w-0 flex-1 bg-[#f8fbff]/80">
-              <header className="flex h-14 items-center gap-3 border-b border-[#e8eef8] bg-white/62 px-4 sm:px-6">
-                <button className="flex h-8 w-8 items-center justify-center rounded-[8px] text-[#667085] lg:hidden">
-                  <Menu size={18} />
-                </button>
-                <div className="flex flex-1 items-center gap-2 overflow-x-auto">
-                  <button
-                    onClick={() => setTab('products')}
-                    className={`whitespace-nowrap rounded-[8px] px-3 py-1.5 text-xs font-semibold ${
-                      tab === 'products' ? 'bg-[#eef4ff] text-[#2f6fe4]' : 'bg-white text-[#667085]'
-                    }`}
-                  >
-                    AI 选品
-                  </button>
-                  <button
-                    onClick={handleTabTrends}
-                    className={`whitespace-nowrap rounded-[8px] px-3 py-1.5 text-xs font-semibold ${
-                      tab === 'trends' ? 'bg-[#eef4ff] text-[#2f6fe4]' : 'bg-white text-[#667085]'
-                    }`}
-                  >
-                    热点分析
-                  </button>
-                  <button onClick={openAddModal} className="whitespace-nowrap rounded-[8px] bg-white px-3 py-1.5 text-xs font-semibold text-[#667085]">
-                    新建记录
+              <ProductInspector product={selectedProduct} onOptimize={optimizeTitle} optimizing={selectedProduct ? optimizingId === selectedProduct.id : false} />
+            </div>
+          ) : (
+            <div className="grid min-h-[calc(100vh-170px)] gap-6 xl:grid-cols-[minmax(0,1fr)_520px]">
+              <section className="rounded-[30px] border border-white/80 bg-white p-5 shadow-xl shadow-blue-100/50">
+                <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <h2 className="text-2xl font-black">实时热榜</h2>
+                    <p className="mt-1 text-sm text-[#667085]">已接入 {trendSource}，点击热词后右侧立即显示 AI 分析，不用向下滚动。</p>
+                  </div>
+                  <button onClick={() => loadTrends(true)} disabled={trendsLoading} className="flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#eef4ff] px-4 text-sm font-bold text-[#2f6fe4] disabled:opacity-60">
+                    <RefreshCw size={17} className={trendsLoading ? 'animate-spin' : ''} />
+                    刷新热榜
                   </button>
                 </div>
-                <button
-                  onClick={openAddModal}
-                  className="flex h-9 items-center gap-2 rounded-[8px] bg-[#2f6fe4] px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-[#245ed0]"
-                >
-                  <Plus size={15} />
-                  添加
-                </button>
-              </header>
-
-              <div className="p-4 sm:p-6">
-                {tab === 'products' && (
-                  <>
-                    <div className="mb-6 rounded-[8px] border border-[#e5edfb] bg-white p-4 shadow-sm">
-                      <div className="mb-4 flex flex-wrap items-center gap-2">
-                        {['AI 选品', '淘宝链接', '竞品备注', '更多'].map(item => (
-                          <span key={item} className="rounded-[8px] bg-[#f6f8fc] px-3 py-1.5 text-xs font-semibold text-[#667085]">
-                            {item}
-                          </span>
-                        ))}
-                      </div>
-                      <div className="flex min-h-[96px] flex-col justify-between rounded-[8px] border border-[#e6edf8] bg-[#fbfdff] p-4">
-                        <input
-                          value={search}
-                          onChange={e => setSearch(e.target.value)}
-                          placeholder="输入商品名、设计目标、竞品关键词，快速筛选选品记录"
-                          className="w-full bg-transparent text-sm text-[#172033] outline-none placeholder:text-[#98a2b3]"
-                        />
-                        <div className="mt-5 flex items-center justify-end gap-2">
-                          <Search size={17} className="text-[#98a2b3]" />
-                          <button onClick={openAddModal} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#edf4ff] text-[#2f6fe4]">
-                            <Plus size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mb-6 grid gap-4 md:grid-cols-3">
-                      {moduleCards.map(card => (
-                        <div key={card.title} className="rounded-[8px] border border-[#e5edfb] bg-white p-4 shadow-sm">
-                          <div className={`mb-4 h-28 rounded-[8px] bg-gradient-to-br ${card.color}`} />
-                          <h3 className="font-bold">{card.title}</h3>
-                          <p className="mt-1 text-xs text-[#667085]">{card.desc}</p>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="mb-4 grid gap-3 sm:grid-cols-4">
-                      {stats.map(item => (
-                        <div key={item.label} className="rounded-[8px] border border-[#e5edfb] bg-white p-4 shadow-sm">
-                          <div className="text-2xl font-black text-[#2f6fe4]">{item.value}</div>
-                          <div className="text-xs font-semibold text-[#667085]">{item.label}</div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="mb-4 flex flex-col gap-3 rounded-[8px] border border-[#e5edfb] bg-white p-3 shadow-sm sm:flex-row">
-                      <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#98a2b3]" size={16} />
-                        <input
-                          value={search}
-                          onChange={e => setSearch(e.target.value)}
-                          placeholder="搜索商品名或备注"
-                          className="h-10 w-full rounded-[8px] bg-[#f6f8fc] pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-[#b8d3ff]"
-                        />
-                      </div>
-                      <FilterSelect value={filterStatus} onChange={setFilterStatus} options={['考虑中', '已选', '已放弃']} placeholder="全部状态" />
-                      <FilterSelect value={filterCategory} onChange={setFilterCategory} options={categories} placeholder="全部分类" />
-                    </div>
-
-                    {filteredProducts.length > 0 ? (
-                      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                        {filteredProducts.map(p => (
-                          <article key={p.id} className="rounded-[8px] border border-[#e5edfb] bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-                            <div className="mb-3 flex items-start justify-between gap-3">
-                              <div>
-                                <h3 className="font-bold leading-snug">{p.name}</h3>
-                                <p className="mt-1 text-xs text-[#98a2b3]">{p.createdAt}</p>
-                              </div>
-                              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusStyles[p.status]}`}>{p.status}</span>
-                            </div>
-                            <div className="mb-3 flex flex-wrap gap-2">
-                              {p.price && <span className="rounded-full bg-[#fff7e8] px-2.5 py-1 text-xs font-bold text-[#b76b00]">¥{p.price}</span>}
-                              {p.category && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-[#f4f6fb] px-2.5 py-1 text-xs text-[#667085]">
-                                  <Tag size={12} />
-                                  {p.category}
-                                </span>
-                              )}
-                            </div>
-                            {p.notes && <p className="mb-3 line-clamp-3 text-sm leading-relaxed text-[#667085]">{p.notes}</p>}
-                            {p.url && (
-                              <a href={p.url} target="_blank" rel="noreferrer" className="mb-3 flex items-center gap-2 truncate rounded-[8px] bg-[#f6f8fc] px-3 py-2 text-xs text-[#2f6fe4]">
-                                <LinkIcon size={14} />
-                                <span className="truncate">{p.url}</span>
-                                <ExternalLink size={13} className="ml-auto flex-shrink-0" />
-                              </a>
-                            )}
-                            <div className="flex items-center gap-2">
-                              <button onClick={() => openEditModal(p)} className="rounded-[8px] bg-[#eef4ff] px-3 py-1.5 text-xs font-semibold text-[#2f6fe4]">
-                                编辑
-                              </button>
-                              <select value={p.status} onChange={e => quickStatus(p.id, e.target.value as ProductStatus)} className="rounded-[8px] bg-[#f6f8fc] px-3 py-1.5 text-xs text-[#667085] outline-none">
-                                <option>考虑中</option>
-                                <option>已选</option>
-                                <option>已放弃</option>
-                              </select>
-                              <button onClick={() => deleteProduct(p.id)} className="ml-auto flex h-8 w-8 items-center justify-center rounded-[8px] text-[#d92d20] hover:bg-[#fff0ef]" title="删除">
-                                <Trash2 size={15} />
-                              </button>
-                            </div>
-                          </article>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="rounded-[8px] border border-dashed border-[#cdddf5] bg-white/72 py-16 text-center text-sm text-[#667085]">
-                        暂无选品记录，点击添加创建第一个商品灵感。
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {tab === 'trends' && (
-                  <div className="space-y-5">
-                    <div className="rounded-[8px] border border-[#e5edfb] bg-white p-5 shadow-sm">
-                      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <h2 className="text-xl font-black">AI 热点选品分析</h2>
-                          <p className="mt-1 text-xs text-[#667085]">输入热词，生成虚拟商品方向、定价和销售平台建议。</p>
-                        </div>
-                        {trendsUpdatedAt && <span className="text-xs text-[#98a2b3]">更新于 {trendsUpdatedAt}</span>}
-                      </div>
-                      <div className="flex min-h-[108px] flex-col justify-between rounded-[8px] border border-[#e6edf8] bg-[#fbfdff] p-4">
-                        <input
-                          value={analyzeKeyword}
-                          onChange={e => setAnalyzeKeyword(e.target.value)}
-                          onKeyDown={e => e.key === 'Enter' && doAnalyze()}
-                          placeholder="输入热点关键词，如 AI绘画、小红书、考试资料"
-                          className="w-full bg-transparent text-sm outline-none placeholder:text-[#98a2b3]"
-                        />
-                        <div className="mt-5 flex justify-end">
-                          <button onClick={() => doAnalyze()} disabled={analyzing} className="flex items-center gap-2 rounded-[8px] bg-[#2f6fe4] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
-                            <Sparkles size={16} />
-                            {analyzing ? '分析中' : 'AI 分析'}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="rounded-[8px] border border-[#e5edfb] bg-white p-5 shadow-sm">
-                      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex items-start gap-3">
-                          <div className="flex h-11 w-11 items-center justify-center rounded-[8px] bg-[#eef4ff] text-[#2f6fe4]">
-                            <Flame size={22} />
-                          </div>
-                          <div>
-                            <h2 className="text-2xl font-black">实时热榜</h2>
-                            <p className="mt-1 text-xs text-[#667085]">已接入 {trendSource} 聚合热榜。点击词条可直接进行 AI 分析。</p>
-                          </div>
-                        </div>
-                        <button onClick={() => loadTrends(true)} disabled={trendsLoading} className="flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#f0f5ff] px-4 text-sm font-semibold text-[#2f6fe4] disabled:opacity-50">
-                          <RefreshCw size={16} className={trendsLoading ? 'animate-spin' : ''} />
-                          刷新热榜
-                        </button>
-                      </div>
-                      {trendsLoading ? (
-                        <div className="flex min-h-[620px] items-center justify-center rounded-[8px] bg-[#f6f8fc] text-sm text-[#667085]">
-                          <RefreshCw className="mr-2 animate-spin" size={17} />
-                          加载热榜数据中
-                        </div>
-                      ) : trendsEntries.length > 0 ? (
-                        <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-3 min-[1680px]:grid-cols-4">
-                          {trendsEntries.map(([platform, items]) => (
-                            <div key={platform} className="overflow-hidden rounded-[8px] border border-[#dfe8f6] bg-white shadow-sm">
-                              <div className="flex items-center justify-between border-b border-[#edf2fa] bg-gradient-to-r from-[#f8fbff] to-white px-4 py-3">
-                                <div>
-                                  <h3 className="text-lg font-black">{platform}</h3>
-                                  <p className="mt-0.5 text-xs text-[#98a2b3]">点击任意热词生成选品建议</p>
-                                </div>
-                                <span className="rounded-full bg-[#eef4ff] px-3 py-1 text-xs font-semibold text-[#2f6fe4]">{items.length} 条</span>
-                              </div>
-                              <div className="max-h-[680px] overflow-y-auto">
-                                {items.map(item => (
-                                  <button key={`${platform}-${item.rank}`} onClick={() => doAnalyze(item.title)} className="group flex min-h-[64px] w-full items-center gap-3 border-b border-[#f0f4f9] px-4 py-3 text-left transition last:border-b-0 hover:bg-[#f7faff]">
-                                    <span className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[8px] text-sm font-black ${item.rank <= 3 ? 'bg-[#2f6fe4] text-white' : 'bg-[#eef2f8] text-[#667085]'}`}>
-                                      {item.rank}
-                                    </span>
-                                    <span className="min-w-0 flex-1">
-                                      <span className="line-clamp-2 text-sm font-semibold leading-snug text-[#182230]">{item.title}</span>
-                                      {item.hotValue && <span className="mt-1 block text-xs text-[#98a2b3]">{formatHot(item.hotValue)}</span>}
-                                    </span>
-                                    <span className="flex-shrink-0 rounded-full bg-[#eef4ff] px-2 py-1 text-[11px] font-semibold text-[#2f6fe4] opacity-0 transition group-hover:opacity-100">
-                                      AI
-                                    </span>
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="rounded-[8px] border border-dashed border-[#cdddf5] bg-[#fbfdff] py-24 text-center text-sm text-[#667085]">
-                          暂无热榜数据，点击刷新获取。
-                        </div>
-                      )}
-                    </div>
-
-                    <aside className="rounded-[8px] border border-[#e5edfb] bg-white p-5 shadow-sm">
-                      <div className="mb-4 flex items-center gap-3">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-[8px] bg-gradient-to-br from-[#2f6fe4] to-[#8c6dff] text-white">
-                          <Bot size={22} />
-                        </div>
-                        <div>
-                          <h2 className="font-black">AI 输出</h2>
-                          <p className="text-xs text-[#667085]">选品建议会显示在这里</p>
-                        </div>
-                      </div>
-                      <div className="min-h-[360px] overflow-y-auto rounded-[8px] bg-[#f6f8fc] p-4">
-                        {analyzing ? (
-                          <div className="flex min-h-[300px] flex-col items-center justify-center text-sm text-[#667085]">
-                            <RefreshCw className="mb-3 animate-spin text-[#2f6fe4]" size={24} />
-                            AI 正在生成分析
-                          </div>
-                        ) : analyzeResult ? (
-                          <pre className="whitespace-pre-wrap text-sm leading-relaxed text-[#344054]">{analyzeResult}</pre>
-                        ) : (
-                          <div className="flex min-h-[300px] flex-col items-center justify-center text-center text-sm text-[#98a2b3]">
-                            <BarChart3 className="mb-3 text-[#b8c7df]" size={34} />
-                            选择一个热榜关键词，或手动输入关键词。
-                          </div>
-                        )}
-                      </div>
-                    </aside>
+                {trendsLoading ? (
+                  <div className="flex h-[680px] items-center justify-center rounded-3xl bg-[#f6f9ff] text-sm text-[#667085]">
+                    <Loader2 className="mr-2 animate-spin text-[#2f6fe4]" size={18} />
+                    正在加载全网热榜
+                  </div>
+                ) : trendsEntries.length > 0 ? (
+                  <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+                    {trendsEntries.map(([platform, items]) => (
+                      <TrendBoard key={platform} platform={platform} items={items} formatHot={formatHot} onAnalyze={doAnalyze} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex h-[680px] items-center justify-center rounded-3xl border border-dashed border-[#c8d8ef] text-sm text-[#667085]">
+                    点击刷新热榜获取数据
                   </div>
                 )}
-              </div>
-            </div>
-          </div>
-        </section>
+              </section>
 
-        <section className="mt-5 overflow-hidden rounded-[8px] border border-white/70 bg-white/70 p-5 shadow-[0_20px_60px_rgba(80,120,190,0.16)] backdrop-blur-xl">
-          <div className="mb-8 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="h-7 w-7 rounded-[8px] bg-gradient-to-br from-[#2f6fe4] to-[#8c6dff]" />
-              <span className="text-sm font-bold">选品工作流</span>
-            </div>
-            <span className="rounded-full border border-[#d9e5f8] bg-white px-3 py-1 text-xs text-[#667085]">AI Gallery 选品灵感平台</span>
-          </div>
-          <div className="text-center">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-[8px] bg-white shadow-sm">
-              <Sparkles className="text-[#172033]" size={26} />
-            </div>
-            <h2 className="text-xl font-black">虚拟商品大模型</h2>
-            <p className="mt-1 text-xs tracking-[0.2em] text-[#667085]">AI FOR PRODUCT IDEAS AND TREND ANALYSIS</p>
-          </div>
-          <div className="mt-8 grid gap-4 md:grid-cols-5">
-            {['热点发现', 'AI 分析', '选品记录', '链接整理', '状态跟进'].map((item, index) => (
-              <div key={item} className="rounded-[8px] border border-[#e5edfb] bg-white/78 p-4 shadow-sm">
-                <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-[8px] bg-[#f0f5ff] text-[#2f6fe4]">
-                  {index + 1}
+              <aside className="sticky top-8 h-[calc(100vh-64px)] rounded-[30px] border border-white/80 bg-[#101828] p-5 text-white shadow-2xl shadow-blue-200/70">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-[#9cc3ff]">
+                    <Bot size={24} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black">AI 选品分析</h2>
+                    <p className="text-xs text-white/50">{trendsUpdatedAt ? `热榜更新于 ${trendsUpdatedAt}` : '点击左侧热词开始分析'}</p>
+                  </div>
                 </div>
-                <h3 className="text-sm font-bold">{item}</h3>
-                <p className="mt-2 text-xs leading-relaxed text-[#98a2b3]">把灵感整理成可执行商品方向。</p>
-              </div>
-            ))}
-          </div>
+                <div className="mb-4 flex gap-2 rounded-2xl bg-white/8 p-2">
+                  <input value={analyzeKeyword} onChange={e => setAnalyzeKeyword(e.target.value)} onKeyDown={e => e.key === 'Enter' && doAnalyze()} placeholder="手动输入热点关键词" className="h-11 min-w-0 flex-1 bg-transparent px-3 text-sm text-white outline-none placeholder:text-white/35" />
+                  <button onClick={() => doAnalyze()} disabled={analyzing} className="flex h-11 items-center gap-2 rounded-xl bg-[#2f6fe4] px-4 text-sm font-bold disabled:opacity-60">
+                    {analyzing ? <Loader2 className="animate-spin" size={16} /> : <Wand2 size={16} />}
+                    分析
+                  </button>
+                </div>
+                <div className="h-[calc(100%-132px)] overflow-y-auto rounded-2xl bg-white/[0.06] p-4">
+                  {analyzing ? (
+                    <div className="flex h-full flex-col items-center justify-center text-sm text-white/60">
+                      <Loader2 className="mb-3 animate-spin text-[#9cc3ff]" size={28} />
+                      正在生成选品建议
+                    </div>
+                  ) : analyzeResult ? (
+                    <pre className="whitespace-pre-wrap text-sm leading-7 text-white/88">{analyzeResult}</pre>
+                  ) : (
+                    <div className="flex h-full flex-col items-center justify-center text-center text-sm text-white/45">
+                      <Flame className="mb-3 text-[#9cc3ff]" size={36} />
+                      热榜点击后，分析结果会固定显示在这里。
+                    </div>
+                  )}
+                </div>
+              </aside>
+            </div>
+          )}
         </section>
       </div>
 
       {showModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#172033]/45 p-4 backdrop-blur-sm"
-          onClick={e => e.target === e.currentTarget && setShowModal(false)}
-        >
-          <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-[8px] bg-white p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#102033]/45 p-4 backdrop-blur-sm" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[28px] bg-white p-6 shadow-2xl">
             <div className="mb-5 flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold text-[#2f6fe4]">{editingId !== null ? '编辑记录' : '新建记录'}</p>
-                <h2 className="text-2xl font-black">{editingId !== null ? '调整选品信息' : '添加选品信息'}</h2>
+                <p className="text-sm font-bold text-[#2f6fe4]">{editingId !== null ? '编辑选品' : '新建选品'}</p>
+                <h2 className="text-2xl font-black">商品档案</h2>
               </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-[#eef4ff] text-[#2f6fe4]">
-                <Plus size={20} />
-              </div>
+              <button onClick={saveProduct} className="flex items-center gap-2 rounded-2xl bg-[#2f6fe4] px-4 py-2 text-sm font-bold text-white">
+                <Check size={16} />
+                保存
+              </button>
             </div>
-
-            <div className="space-y-4">
-              <FieldLabel label="商品名称 *">
-                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="输入商品名称" className="field-input" />
-              </FieldLabel>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <FieldLabel label="参考价格（¥）">
-                  <input value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} placeholder="0.00" type="number" className="field-input" />
-                </FieldLabel>
+            <div className="grid gap-4">
+              <FieldLabel label="商品标题 *"><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="field-input" /></FieldLabel>
+              <div className="grid gap-4 md:grid-cols-2">
+                <FieldLabel label="主图链接"><input value={form.imageUrl || ''} onChange={e => setForm(f => ({ ...f, imageUrl: e.target.value }))} className="field-input" /></FieldLabel>
+                <FieldLabel label="分类"><input value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} className="field-input" /></FieldLabel>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <FieldLabel label="商品链接"><input value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} className="field-input" /></FieldLabel>
                 <FieldLabel label="状态">
                   <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as ProductStatus }))} className="field-input">
-                    <option>考虑中</option>
-                    <option>已选</option>
-                    <option>已放弃</option>
+                    <option>考虑中</option><option>已选</option><option>已放弃</option>
                   </select>
                 </FieldLabel>
               </div>
-              <FieldLabel label="分类">
-                <input value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} placeholder="如：教程、素材、模板" className="field-input" />
-              </FieldLabel>
-              <FieldLabel label="商品链接">
-                <input value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} placeholder="https://item.taobao.com/..." className="field-input" />
-              </FieldLabel>
-              <FieldLabel label="备注">
-                <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="记录选品原因、竞品分析、上架思路" rows={4} className="field-input h-auto resize-y py-2" />
-              </FieldLabel>
+              <FieldLabel label="详情摘要"><textarea value={form.detailText || form.notes} onChange={e => setForm(f => ({ ...f, detailText: e.target.value, notes: e.target.value }))} rows={5} className="field-input h-auto resize-y py-2" /></FieldLabel>
             </div>
-
             <div className="mt-6 flex justify-end gap-2">
-              <button onClick={() => setShowModal(false)} className="rounded-[8px] bg-[#f2f5fa] px-4 py-2 text-sm font-semibold text-[#667085] hover:bg-[#e8eef8]">
-                取消
-              </button>
-              <button onClick={saveProduct} className="flex items-center gap-2 rounded-[8px] bg-[#2f6fe4] px-4 py-2 text-sm font-semibold text-white hover:bg-[#245ed0]">
-                <Check size={16} />
-                {editingId !== null ? '保存修改' : '添加'}
-              </button>
+              <button onClick={() => setShowModal(false)} className="rounded-2xl bg-[#f2f5fa] px-4 py-2 text-sm font-bold text-[#667085]">取消</button>
+              <button onClick={saveProduct} className="rounded-2xl bg-[#2f6fe4] px-4 py-2 text-sm font-bold text-white">保存修改</button>
             </div>
           </div>
         </div>
       )}
 
       {toast.show && (
-        <div className={`fixed bottom-6 right-6 z-50 rounded-[8px] px-4 py-2 text-sm font-semibold shadow-lg ${
-          toast.type === 'error' ? 'bg-[#fff0ef] text-[#d92d20]' : 'bg-[#e7f8ef] text-[#168044]'
-        }`}>
+        <div className={`fixed bottom-6 right-6 z-50 rounded-2xl px-4 py-3 text-sm font-bold shadow-xl ${toast.type === 'error' ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'}`}>
           {toast.msg}
         </div>
       )}
@@ -653,24 +512,19 @@ export default function Home() {
   );
 }
 
-function FilterSelect({
-  value,
-  onChange,
-  options,
-  placeholder,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  options: string[];
-  placeholder: string;
-}) {
+function NavButton({ active, icon, label, onClick }: { active: boolean; icon: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold transition ${active ? 'bg-[#eef4ff] text-[#2f6fe4]' : 'text-[#667085] hover:bg-white/70'}`}>
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+function FilterSelect({ value, onChange, options, placeholder }: { value: string; onChange: (value: string) => void; options: string[]; placeholder: string }) {
   return (
     <div className="relative">
-      <select
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        className="h-10 min-w-[128px] appearance-none rounded-[8px] bg-[#f6f8fc] px-3 pr-9 text-sm text-[#667085] outline-none focus:ring-2 focus:ring-[#b8d3ff]"
-      >
+      <select value={value} onChange={e => onChange(e.target.value)} className="h-12 min-w-[138px] appearance-none rounded-2xl bg-[#f6f9ff] px-4 pr-9 text-sm text-[#667085] outline-none">
         <option value="">{placeholder}</option>
         {options.map(option => <option key={option}>{option}</option>)}
       </select>
@@ -679,10 +533,122 @@ function FilterSelect({
   );
 }
 
+function ProductCard({ product, active, optimizing, onSelect, onEdit, onDelete, onOptimize, onStatus }: {
+  product: Product;
+  active: boolean;
+  optimizing: boolean;
+  onSelect: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onOptimize: () => void;
+  onStatus: (status: ProductStatus) => void;
+}) {
+  return (
+    <article onClick={onSelect} className={`cursor-pointer overflow-hidden rounded-[24px] border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg ${active ? 'border-[#2f6fe4] ring-4 ring-blue-100' : 'border-[#e5edfb]'}`}>
+      <div className="relative h-44 bg-[#eef4ff]">
+        {product.imageUrl ? <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-[#98a2b3]"><ImageIcon size={36} /></div>}
+        <span className={`absolute left-3 top-3 rounded-full px-3 py-1 text-xs font-bold ring-1 ${statusStyles[product.status]}`}>{product.status}</span>
+      </div>
+      <div className="p-4">
+        <h3 className="line-clamp-2 min-h-[44px] font-black leading-snug">{product.name}</h3>
+        <div className="mt-3 flex flex-wrap gap-2 text-xs text-[#667085]">
+          {product.category && <span className="rounded-full bg-[#f4f6fb] px-2.5 py-1">{product.category}</span>}
+          <span className="rounded-full bg-[#f4f6fb] px-2.5 py-1">{product.createdAt}</span>
+        </div>
+        <div className="mt-4 flex items-center gap-2">
+          <button onClick={e => { e.stopPropagation(); onOptimize(); }} disabled={optimizing} className="flex items-center gap-1 rounded-xl bg-[#eef4ff] px-3 py-2 text-xs font-bold text-[#2f6fe4] disabled:opacity-60">
+            {optimizing ? <Loader2 className="animate-spin" size={14} /> : <Wand2 size={14} />}
+            优化标题
+          </button>
+          <button onClick={e => { e.stopPropagation(); onEdit(); }} className="rounded-xl bg-[#f6f9ff] px-3 py-2 text-xs font-bold text-[#667085]">编辑</button>
+          <button onClick={e => { e.stopPropagation(); onDelete(); }} className="ml-auto flex h-8 w-8 items-center justify-center rounded-xl text-rose-600 hover:bg-rose-50"><Trash2 size={15} /></button>
+        </div>
+        <select value={product.status} onClick={e => e.stopPropagation()} onChange={e => onStatus(e.target.value as ProductStatus)} className="mt-3 h-9 w-full rounded-xl bg-[#f6f9ff] px-3 text-xs text-[#667085] outline-none">
+          <option>考虑中</option><option>已选</option><option>已放弃</option>
+        </select>
+      </div>
+    </article>
+  );
+}
+
+function ProductInspector({ product, optimizing, onOptimize }: { product?: Product; optimizing: boolean; onOptimize: (product: Product) => void }) {
+  if (!product) {
+    return (
+      <aside className="rounded-[30px] border border-white/80 bg-white p-6 shadow-xl shadow-blue-100/50">
+        <div className="flex h-full min-h-[520px] flex-col items-center justify-center text-center text-sm text-[#98a2b3]">
+          <PackagePlus className="mb-3" size={38} />
+          导入或选择一个商品后，这里会显示详情和标题优化结果。
+        </div>
+      </aside>
+    );
+  }
+
+  return (
+    <aside className="sticky top-8 h-[calc(100vh-64px)] overflow-y-auto rounded-[30px] border border-white/80 bg-white p-6 shadow-xl shadow-blue-100/50">
+      <div className="mb-5 overflow-hidden rounded-[24px] bg-[#eef4ff]">
+        {product.imageUrl ? <img src={product.imageUrl} alt={product.name} className="h-64 w-full object-cover" /> : <div className="flex h-64 items-center justify-center text-[#98a2b3]"><ImageIcon size={42} /></div>}
+      </div>
+      <h2 className="text-xl font-black leading-snug">{product.name}</h2>
+      {product.url && <a href={product.url} target="_blank" rel="noreferrer" className="mt-3 flex items-center gap-2 rounded-2xl bg-[#f6f9ff] px-3 py-2 text-xs font-bold text-[#2f6fe4]"><LinkIcon size={14} />查看原链接<ExternalLink size={13} /></a>}
+      <div className="mt-5 rounded-3xl bg-[#f6f9ff] p-4">
+        <div className="mb-2 flex items-center gap-2 text-sm font-black"><Tag size={16} />详情摘要</div>
+        <p className="text-sm leading-6 text-[#667085]">{product.detailText || product.notes || '暂无详情摘要'}</p>
+      </div>
+      {product.detailImages && product.detailImages.length > 0 && (
+        <div className="mt-5">
+          <div className="mb-3 text-sm font-black">详情图</div>
+          <div className="grid grid-cols-3 gap-2">
+            {product.detailImages.slice(0, 9).map(image => <img key={image} src={image} alt="" className="aspect-square rounded-2xl object-cover" />)}
+          </div>
+        </div>
+      )}
+      <button onClick={() => onOptimize(product)} disabled={optimizing} className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#2f6fe4] text-sm font-black text-white disabled:opacity-60">
+        {optimizing ? <Loader2 className="animate-spin" size={18} /> : <Wand2 size={18} />}
+        AI 优化淘宝标题
+      </button>
+      <div className="mt-5 space-y-3">
+        {(product.optimizedTitles || []).map((title, index) => (
+          <div key={`${title}-${index}`} className="rounded-2xl border border-[#e5edfb] bg-[#fbfdff] p-3">
+            <div className="mb-2 text-xs font-bold text-[#2f6fe4]">版本 {index + 1}</div>
+            <div className="text-sm font-bold leading-6">{title}</div>
+            <button onClick={() => navigator.clipboard.writeText(title)} className="mt-2 flex items-center gap-1 text-xs font-bold text-[#667085]"><Copy size={13} />复制</button>
+          </div>
+        ))}
+      </div>
+    </aside>
+  );
+}
+
+function TrendBoard({ platform, items, formatHot, onAnalyze }: { platform: string; items: TrendItem[]; formatHot: (value: string) => string; onAnalyze: (keyword: string) => void }) {
+  return (
+    <div className="overflow-hidden rounded-[24px] border border-[#e1e9f6] bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-[#eef3fa] px-4 py-3">
+        <div>
+          <h3 className="font-black">{platform}</h3>
+          <p className="text-xs text-[#98a2b3]">{items.length} 条热点</p>
+        </div>
+        <Flame className="text-[#2f6fe4]" size={18} />
+      </div>
+      <div className="max-h-[640px] overflow-y-auto">
+        {items.map(item => (
+          <button key={`${platform}-${item.rank}`} onClick={() => onAnalyze(item.title)} className="group flex min-h-[62px] w-full items-center gap-3 border-b border-[#f1f5fb] px-4 py-3 text-left last:border-b-0 hover:bg-[#f7faff]">
+            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-sm font-black ${item.rank <= 3 ? 'bg-[#2f6fe4] text-white' : 'bg-[#eef4ff] text-[#667085]'}`}>{item.rank}</span>
+            <span className="min-w-0 flex-1">
+              <span className="line-clamp-2 text-sm font-bold leading-snug">{item.title}</span>
+              {item.hotValue && <span className="mt-1 block text-xs text-[#98a2b3]">{formatHot(item.hotValue)}</span>}
+            </span>
+            <span className="rounded-full bg-[#eef4ff] px-2 py-1 text-[11px] font-bold text-[#2f6fe4] opacity-0 transition group-hover:opacity-100">分析</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function FieldLabel({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-semibold text-[#667085]">{label}</span>
+      <span className="mb-1 block text-xs font-bold text-[#667085]">{label}</span>
       {children}
     </label>
   );
