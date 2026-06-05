@@ -436,82 +436,89 @@ export default function Home() {
                 )}
 
                 {tab === 'trends' && (
-                  <div className="grid gap-5 xl:grid-cols-[1fr_340px]">
-                    <div>
-                      <div className="mb-5 rounded-[8px] border border-[#e5edfb] bg-white p-4 shadow-sm">
-                        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <h2 className="text-xl font-black">AI 热点选品分析</h2>
-                            <p className="mt-1 text-xs text-[#667085]">输入热词，生成虚拟商品方向、定价和销售平台建议。</p>
-                          </div>
-                          {trendsUpdatedAt && <span className="text-xs text-[#98a2b3]">更新于 {trendsUpdatedAt}</span>}
+                  <div className="space-y-5">
+                    <div className="rounded-[8px] border border-[#e5edfb] bg-white p-5 shadow-sm">
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <h2 className="text-xl font-black">AI 热点选品分析</h2>
+                          <p className="mt-1 text-xs text-[#667085]">输入热词，生成虚拟商品方向、定价和销售平台建议。</p>
                         </div>
-                        <div className="flex min-h-[96px] flex-col justify-between rounded-[8px] border border-[#e6edf8] bg-[#fbfdff] p-4">
-                          <input
-                            value={analyzeKeyword}
-                            onChange={e => setAnalyzeKeyword(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && doAnalyze()}
-                            placeholder="输入热点关键词，如 AI绘画、小红书、考试资料"
-                            className="w-full bg-transparent text-sm outline-none placeholder:text-[#98a2b3]"
-                          />
-                          <div className="mt-5 flex justify-end">
-                            <button onClick={() => doAnalyze()} disabled={analyzing} className="flex items-center gap-2 rounded-[8px] bg-[#2f6fe4] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
-                              <Sparkles size={16} />
-                              {analyzing ? '分析中' : 'AI 分析'}
-                            </button>
-                          </div>
-                        </div>
+                        {trendsUpdatedAt && <span className="text-xs text-[#98a2b3]">更新于 {trendsUpdatedAt}</span>}
                       </div>
-
-                      <div className="rounded-[8px] border border-[#e5edfb] bg-white p-4 shadow-sm">
-                        <div className="mb-4 flex items-center justify-between">
-                          <div>
-                            <h2 className="font-black">实时热榜</h2>
-                            <p className="text-xs text-[#667085]">点击词条可直接进行 AI 分析。</p>
-                          </div>
-                          <button onClick={() => loadTrends(true)} disabled={trendsLoading} className="flex items-center gap-2 rounded-[8px] bg-[#f0f5ff] px-3 py-2 text-xs font-semibold text-[#2f6fe4] disabled:opacity-50">
-                            <RefreshCw size={15} className={trendsLoading ? 'animate-spin' : ''} />
-                            刷新
+                      <div className="flex min-h-[108px] flex-col justify-between rounded-[8px] border border-[#e6edf8] bg-[#fbfdff] p-4">
+                        <input
+                          value={analyzeKeyword}
+                          onChange={e => setAnalyzeKeyword(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && doAnalyze()}
+                          placeholder="输入热点关键词，如 AI绘画、小红书、考试资料"
+                          className="w-full bg-transparent text-sm outline-none placeholder:text-[#98a2b3]"
+                        />
+                        <div className="mt-5 flex justify-end">
+                          <button onClick={() => doAnalyze()} disabled={analyzing} className="flex items-center gap-2 rounded-[8px] bg-[#2f6fe4] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+                            <Sparkles size={16} />
+                            {analyzing ? '分析中' : 'AI 分析'}
                           </button>
                         </div>
-                        {trendsLoading ? (
-                          <div className="flex min-h-[340px] items-center justify-center rounded-[8px] bg-[#f6f8fc] text-sm text-[#667085]">
-                            <RefreshCw className="mr-2 animate-spin" size={17} />
-                            加载热榜数据中
-                          </div>
-                        ) : trendsEntries.length > 0 ? (
-                          <div className="grid gap-4 lg:grid-cols-2">
-                            {trendsEntries.map(([platform, items]) => (
-                              <div key={platform} className="rounded-[8px] border border-[#e6edf8] bg-[#fbfdff] p-3">
-                                <div className="mb-3 flex items-center justify-between">
-                                  <h3 className="font-bold">{platform}</h3>
-                                  <span className="text-xs text-[#98a2b3]">{items.length} 条</span>
-                                </div>
-                                <div className="max-h-[360px] space-y-2 overflow-y-auto">
-                                  {items.map(item => (
-                                    <button key={`${platform}-${item.rank}`} onClick={() => doAnalyze(item.title)} className="flex w-full items-center gap-3 rounded-[8px] bg-white p-3 text-left shadow-sm hover:bg-[#f5f8ff]">
-                                      <span className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-xs font-black ${item.rank <= 3 ? 'bg-[#2f6fe4] text-white' : 'bg-[#eef2f8] text-[#667085]'}`}>
-                                        {item.rank}
-                                      </span>
-                                      <span className="min-w-0 flex-1">
-                                        <span className="line-clamp-2 text-sm font-medium">{item.title}</span>
-                                        {item.hotValue && <span className="text-xs text-[#98a2b3]">{formatHot(item.hotValue)}</span>}
-                                      </span>
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="rounded-[8px] border border-dashed border-[#cdddf5] bg-[#fbfdff] py-16 text-center text-sm text-[#667085]">
-                            暂无热榜数据，点击刷新获取。
-                          </div>
-                        )}
                       </div>
                     </div>
 
-                    <aside className="rounded-[8px] border border-[#e5edfb] bg-white p-4 shadow-sm">
+                    <div className="rounded-[8px] border border-[#e5edfb] bg-white p-5 shadow-sm">
+                      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-11 w-11 items-center justify-center rounded-[8px] bg-[#eef4ff] text-[#2f6fe4]">
+                            <Flame size={22} />
+                          </div>
+                          <div>
+                            <h2 className="text-2xl font-black">实时热榜</h2>
+                            <p className="mt-1 text-xs text-[#667085]">已扩展到微博、百度、头条、抖音、B站、知乎。点击词条可直接进行 AI 分析。</p>
+                          </div>
+                        </div>
+                        <button onClick={() => loadTrends(true)} disabled={trendsLoading} className="flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#f0f5ff] px-4 text-sm font-semibold text-[#2f6fe4] disabled:opacity-50">
+                          <RefreshCw size={16} className={trendsLoading ? 'animate-spin' : ''} />
+                          刷新热榜
+                        </button>
+                      </div>
+                      {trendsLoading ? (
+                        <div className="flex min-h-[620px] items-center justify-center rounded-[8px] bg-[#f6f8fc] text-sm text-[#667085]">
+                          <RefreshCw className="mr-2 animate-spin" size={17} />
+                          加载热榜数据中
+                        </div>
+                      ) : trendsEntries.length > 0 ? (
+                        <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-3">
+                          {trendsEntries.map(([platform, items]) => (
+                            <div key={platform} className="rounded-[8px] border border-[#e6edf8] bg-[#fbfdff] p-4">
+                              <div className="mb-4 flex items-center justify-between">
+                                <div>
+                                  <h3 className="text-lg font-black">{platform}</h3>
+                                  <p className="mt-0.5 text-xs text-[#98a2b3]">最多显示 {items.length} 条热点</p>
+                                </div>
+                                <span className="rounded-full bg-[#eef4ff] px-3 py-1 text-xs font-semibold text-[#2f6fe4]">{items.length} 条</span>
+                              </div>
+                              <div className="max-h-[620px] space-y-2 overflow-y-auto pr-1">
+                                {items.map(item => (
+                                  <button key={`${platform}-${item.rank}`} onClick={() => doAnalyze(item.title)} className="flex min-h-[72px] w-full items-center gap-3 rounded-[8px] bg-white p-3 text-left shadow-sm transition hover:bg-[#f5f8ff] hover:shadow-md">
+                                    <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-black ${item.rank <= 3 ? 'bg-[#2f6fe4] text-white' : 'bg-[#eef2f8] text-[#667085]'}`}>
+                                      {item.rank}
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                      <span className="line-clamp-2 text-sm font-semibold leading-snug">{item.title}</span>
+                                      {item.hotValue && <span className="mt-1 block text-xs text-[#98a2b3]">{formatHot(item.hotValue)}</span>}
+                                    </span>
+                                    <Bot size={16} className="flex-shrink-0 text-[#2f6fe4]" />
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="rounded-[8px] border border-dashed border-[#cdddf5] bg-[#fbfdff] py-24 text-center text-sm text-[#667085]">
+                          暂无热榜数据，点击刷新获取。
+                        </div>
+                      )}
+                    </div>
+
+                    <aside className="rounded-[8px] border border-[#e5edfb] bg-white p-5 shadow-sm">
                       <div className="mb-4 flex items-center gap-3">
                         <div className="flex h-11 w-11 items-center justify-center rounded-[8px] bg-gradient-to-br from-[#2f6fe4] to-[#8c6dff] text-white">
                           <Bot size={22} />
@@ -521,16 +528,16 @@ export default function Home() {
                           <p className="text-xs text-[#667085]">选品建议会显示在这里</p>
                         </div>
                       </div>
-                      <div className="min-h-[540px] overflow-y-auto rounded-[8px] bg-[#f6f8fc] p-4">
+                      <div className="min-h-[360px] overflow-y-auto rounded-[8px] bg-[#f6f8fc] p-4">
                         {analyzing ? (
-                          <div className="flex min-h-[480px] flex-col items-center justify-center text-sm text-[#667085]">
+                          <div className="flex min-h-[300px] flex-col items-center justify-center text-sm text-[#667085]">
                             <RefreshCw className="mb-3 animate-spin text-[#2f6fe4]" size={24} />
                             AI 正在生成分析
                           </div>
                         ) : analyzeResult ? (
                           <pre className="whitespace-pre-wrap text-sm leading-relaxed text-[#344054]">{analyzeResult}</pre>
                         ) : (
-                          <div className="flex min-h-[480px] flex-col items-center justify-center text-center text-sm text-[#98a2b3]">
+                          <div className="flex min-h-[300px] flex-col items-center justify-center text-center text-sm text-[#98a2b3]">
                             <BarChart3 className="mb-3 text-[#b8c7df]" size={34} />
                             选择一个热榜关键词，或手动输入关键词。
                           </div>
