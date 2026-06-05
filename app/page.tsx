@@ -263,6 +263,25 @@ export default function Home() {
     }
   };
 
+  const setFormImageFromFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      showToast('请选择图片文件', 'error');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('图片不能超过 2MB，避免浏览器存储爆满', 'error');
+      return;
+    }
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    setForm(f => ({ ...f, imageUrl: dataUrl }));
+    showToast('主图已添加');
+  };
+
   const optimizeTitle = async (product: Product) => {
     setOptimizingId(product.id);
     try {
@@ -554,6 +573,31 @@ export default function Home() {
             </div>
             <div className="grid gap-4">
               <FieldLabel label="商品标题 *"><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="field-input" /></FieldLabel>
+              <div className="grid gap-4 md:grid-cols-[180px_1fr]">
+                <div className="overflow-hidden rounded-3xl bg-[#eef4ff]">
+                  {form.imageUrl ? (
+                    <img src={form.imageUrl} alt="主图预览" className="aspect-square w-full object-cover" />
+                  ) : (
+                    <div className="flex aspect-square w-full items-center justify-center text-[#98a2b3]">
+                      <ImageIcon size={34} />
+                    </div>
+                  )}
+                </div>
+                <div className="rounded-3xl border border-dashed border-[#c8d8ef] bg-[#fbfdff] p-4">
+                  <div className="mb-2 text-sm font-black">主图</div>
+                  <p className="mb-4 text-xs leading-5 text-[#667085]">可以上传本地图片，也可以粘贴图片链接。上传图片会保存在浏览器本地资料库里。</p>
+                  <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-2xl bg-[#2f6fe4] px-4 text-sm font-bold text-white">
+                    <Upload size={16} />
+                    上传主图
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={e => e.target.files?.[0] && setFormImageFromFile(e.target.files[0])}
+                    />
+                  </label>
+                </div>
+              </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <FieldLabel label="主图链接"><input value={form.imageUrl || ''} onChange={e => setForm(f => ({ ...f, imageUrl: e.target.value }))} className="field-input" /></FieldLabel>
                 <FieldLabel label="分类"><input value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} className="field-input" /></FieldLabel>
