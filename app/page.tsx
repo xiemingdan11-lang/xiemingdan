@@ -39,6 +39,11 @@ interface Product {
   detailText?: string;
   detailImages?: string[];
   optimizedTitles?: string[];
+  processedMainImage?: string;
+  processedDetailImages?: string[];
+  githubMainImage?: string;
+  githubDetailImages?: string[];
+  listingStatus?: '待处理' | '待改图' | '已改图' | '可上架';
 }
 
 interface TrendItem {
@@ -99,6 +104,11 @@ export default function Home() {
     detailText: '',
     detailImages: [],
     optimizedTitles: [],
+    processedMainImage: '',
+    processedDetailImages: [],
+    githubMainImage: '',
+    githubDetailImages: [],
+    listingStatus: '待处理',
   });
 
   const [trends, setTrends] = useState<TrendsData>({});
@@ -154,6 +164,11 @@ export default function Home() {
       detailText: p.detailText || '',
       detailImages: p.detailImages || [],
       optimizedTitles: p.optimizedTitles || [],
+      processedMainImage: p.processedMainImage || '',
+      processedDetailImages: p.processedDetailImages || [],
+      githubMainImage: p.githubMainImage || '',
+      githubDetailImages: p.githubDetailImages || [],
+      listingStatus: p.listingStatus || '待处理',
     });
     setShowModal(true);
   };
@@ -199,6 +214,11 @@ export default function Home() {
         detailText: item.detailText || '',
         detailImages: item.detailImages || [],
         optimizedTitles: [],
+        processedMainImage: '',
+        processedDetailImages: [],
+        githubMainImage: '',
+        githubDetailImages: [],
+        listingStatus: '待处理',
       };
       const next = [product, ...products];
       persistProducts(next);
@@ -219,11 +239,25 @@ export default function Home() {
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
 
+      const splitImages = (value: unknown) => String(value || '')
+        .split(/[\n\r,，;；\s]+/)
+        .map(item => item.trim())
+        .filter(item => /^https?:\/\//.test(item) || item.startsWith('data:image'));
+
       const imported = rows
         .map((row, index): Product | null => {
           const name = String(row['标题'] || row['商品标题'] || row['宝贝标题'] || '').trim();
           const url = String(row['宝贝链接'] || row['商品链接'] || row['链接'] || '').trim();
           const imageUrl = String(row['图片地址'] || row['主图'] || row['主图地址'] || '').trim();
+          const detailImages = [
+            ...splitImages(row['详情图']),
+            ...splitImages(row['详情页图片']),
+            ...splitImages(row['详情图片']),
+            ...splitImages(row['详情页素材']),
+            ...splitImages(row['详情素材']),
+            ...splitImages(row['图片列表']),
+          ].filter(image => image !== imageUrl);
+          const detailText = String(row['详情文案'] || row['详情页文案'] || row['商品详情'] || row['描述'] || '').trim();
           const price = String(row['价格'] || row['售价'] || '').trim();
           const sales = String(row['销量'] || '').trim();
           const itemId = String(row['宝贝ID'] || row['商品ID'] || '').trim();
@@ -240,9 +274,14 @@ export default function Home() {
             status: '考虑中',
             createdAt: new Date().toLocaleString('zh-CN'),
             imageUrl,
-            detailText: '',
-            detailImages: [],
+            detailText,
+            detailImages,
             optimizedTitles: [],
+            processedMainImage: '',
+            processedDetailImages: [],
+            githubMainImage: '',
+            githubDetailImages: [],
+            listingStatus: detailImages.length > 0 ? '待改图' : '待处理',
           };
         })
         .filter((item): item is Product => Boolean(item));
@@ -280,6 +319,92 @@ export default function Home() {
     });
     setForm(f => ({ ...f, imageUrl: dataUrl }));
     showToast('主图已添加');
+  };
+
+  const readImageFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) throw new Error('请选择图片文件');
+    if (file.size > 2 * 1024 * 1024) throw new Error('图片不能超过 2MB');
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const updateProduct = (id: number, patch: Partial<Product>) => {
+    persistProducts(products.map(p => (p.id === id ? { ...p, ...patch } : p)));
+  };
+
+  const uploadImageToGitHub = async (product: Product, image: string, kind: 'main' | 'detail') => {
+    try {
+      const res = await fetch('/api/github-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image, title: product.name, kind }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        showToast(data.error || '上传 GitHub 失败', 'error');
+        return '';
+      }
+      return data.rawUrl as string;
+    } catch {
+      showToast('上传 GitHub 失败', 'error');
+      return '';
+    }
+  };
+
+  const uploadMainToGitHub = async (product: Product) => {
+    if (!product.imageUrl) {
+      showToast('当前商品没有主图', 'error');
+      return;
+    }
+    const url = await uploadImageToGitHub(product, product.imageUrl, 'main');
+    if (!url) return;
+    updateProduct(product.id, { githubMainImage: url });
+    await navigator.clipboard.writeText(url);
+    showToast('主图已上传 GitHub，链接已复制');
+  };
+
+  const uploadDetailsToGitHub = async (product: Product) => {
+    const images = product.detailImages || [];
+    if (images.length === 0) {
+      showToast('当前商品没有详情图', 'error');
+      return;
+    }
+    const uploaded: string[] = [];
+    for (const image of images) {
+      const url = await uploadImageToGitHub(product, image, 'detail');
+      if (url) uploaded.push(url);
+    }
+    if (uploaded.length === 0) return;
+    updateProduct(product.id, { githubDetailImages: [...(product.githubDetailImages || []), ...uploaded] });
+    await navigator.clipboard.writeText(uploaded.join('\n'));
+    showToast(`已上传 ${uploaded.length} 张详情图，链接已复制`);
+  };
+
+  const setProcessedMainImage = async (product: Product, file: File) => {
+    try {
+      const image = await readImageFile(file);
+      updateProduct(product.id, { processedMainImage: image, listingStatus: '已改图' });
+      showToast('加工后主图已保存');
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : '图片上传失败', 'error');
+    }
+  };
+
+  const addProcessedDetailImages = async (product: Product, files: FileList) => {
+    try {
+      const images = await Promise.all(Array.from(files).map(readImageFile));
+      updateProduct(product.id, {
+        processedDetailImages: [...(product.processedDetailImages || []), ...images],
+        listingStatus: '已改图',
+      });
+      showToast(`已保存 ${images.length} 张加工后详情图`);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : '图片上传失败', 'error');
+    }
   };
 
   const optimizeTitle = async (product: Product) => {
@@ -487,7 +612,16 @@ export default function Home() {
                 </section>
               </div>
 
-              <ProductInspector product={selectedProduct} onOptimize={optimizeTitle} optimizing={selectedProduct ? optimizingId === selectedProduct.id : false} />
+              <ProductInspector
+                product={selectedProduct}
+                onOptimize={optimizeTitle}
+                optimizing={selectedProduct ? optimizingId === selectedProduct.id : false}
+                onProcessedMain={setProcessedMainImage}
+                onProcessedDetails={addProcessedDetailImages}
+                onUpdate={updateProduct}
+                onUploadMain={uploadMainToGitHub}
+                onUploadDetails={uploadDetailsToGitHub}
+              />
             </div>
           ) : (
             <div className="grid min-h-[calc(100vh-170px)] gap-6 xl:grid-cols-[minmax(0,1fr)_520px]">
@@ -688,7 +822,24 @@ function ProductCard({ product, active, optimizing, onSelect, onEdit, onDelete, 
   );
 }
 
-function ProductInspector({ product, optimizing, onOptimize }: { product?: Product; optimizing: boolean; onOptimize: (product: Product) => void }) {
+function ProductInspector({
+  product,
+  optimizing,
+  onOptimize,
+  onProcessedMain,
+  onProcessedDetails,
+  onUploadMain,
+  onUploadDetails,
+}: {
+  product?: Product;
+  optimizing: boolean;
+  onOptimize: (product: Product) => void;
+  onProcessedMain: (product: Product, file: File) => void;
+  onProcessedDetails: (product: Product, files: FileList) => void;
+  onUpdate: (id: number, patch: Partial<Product>) => void;
+  onUploadMain: (product: Product) => void;
+  onUploadDetails: (product: Product) => void;
+}) {
   if (!product) {
     return (
       <aside className="rounded-[30px] border border-white/80 bg-white p-6 shadow-xl shadow-blue-100/50">
@@ -707,6 +858,31 @@ function ProductInspector({ product, optimizing, onOptimize }: { product?: Produ
       </div>
       <h2 className="text-xl font-black leading-snug">{product.name}</h2>
       {product.url && <a href={product.url} target="_blank" rel="noreferrer" className="mt-3 flex items-center gap-2 rounded-2xl bg-[#f6f9ff] px-3 py-2 text-xs font-bold text-[#2f6fe4]"><LinkIcon size={14} />查看原链接<ExternalLink size={13} /></a>}
+      <div className="mt-5 rounded-3xl bg-[#eef4ff] p-4">
+        <div className="mb-3 text-sm font-black">GitHub 原图链接</div>
+        <div className="grid gap-2">
+          <button onClick={() => onUploadMain(product)} className="flex h-10 items-center justify-center gap-2 rounded-2xl bg-[#2f6fe4] text-sm font-black text-white">
+            <Upload size={16} />
+            上传主图到 GitHub
+          </button>
+          <button onClick={() => onUploadDetails(product)} className="flex h-10 items-center justify-center gap-2 rounded-2xl bg-white text-sm font-black text-[#2f6fe4] ring-1 ring-[#dbe8fb]">
+            <Upload size={16} />
+            上传详情图到 GitHub
+          </button>
+        </div>
+        {product.githubMainImage && (
+          <button onClick={() => navigator.clipboard.writeText(product.githubMainImage || '')} className="mt-3 flex w-full items-center gap-2 rounded-2xl bg-white px-3 py-2 text-left text-xs font-bold text-[#667085]">
+            <Copy size={13} />
+            <span className="truncate">{product.githubMainImage}</span>
+          </button>
+        )}
+        {product.githubDetailImages && product.githubDetailImages.length > 0 && (
+          <button onClick={() => navigator.clipboard.writeText((product.githubDetailImages || []).join('\n'))} className="mt-2 flex w-full items-center gap-2 rounded-2xl bg-white px-3 py-2 text-left text-xs font-bold text-[#667085]">
+            <Copy size={13} />
+            已上传 {product.githubDetailImages.length} 张详情图，点击复制链接
+          </button>
+        )}
+      </div>
       <div className="mt-5 rounded-3xl bg-[#f6f9ff] p-4">
         <div className="mb-2 flex items-center gap-2 text-sm font-black"><Tag size={16} />详情摘要</div>
         <p className="text-sm leading-6 text-[#667085]">{product.detailText || product.notes || '暂无详情摘要'}</p>
@@ -723,6 +899,25 @@ function ProductInspector({ product, optimizing, onOptimize }: { product?: Produ
         {optimizing ? <Loader2 className="animate-spin" size={18} /> : <Wand2 size={18} />}
         AI 优化淘宝标题
       </button>
+      <div className="mt-5 rounded-3xl bg-[#f6f9ff] p-4">
+        <div className="mb-3 text-sm font-black">加工后素材</div>
+        <label className="mb-2 flex h-10 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white text-sm font-black text-[#2f6fe4] ring-1 ring-[#dbe8fb]">
+          <Upload size={16} />
+          上传加工后主图
+          <input type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && onProcessedMain(product, e.target.files[0])} />
+        </label>
+        <label className="flex h-10 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white text-sm font-black text-[#2f6fe4] ring-1 ring-[#dbe8fb]">
+          <Upload size={16} />
+          上传加工后详情图
+          <input type="file" accept="image/*" multiple className="hidden" onChange={e => e.target.files && onProcessedDetails(product, e.target.files)} />
+        </label>
+        {product.processedMainImage && <img src={product.processedMainImage} alt="加工后主图" className="mt-3 aspect-square w-full rounded-2xl object-cover" />}
+        {product.processedDetailImages && product.processedDetailImages.length > 0 && (
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {product.processedDetailImages.map(image => <img key={image} src={image} alt="" className="aspect-square rounded-2xl object-cover" />)}
+          </div>
+        )}
+      </div>
       <div className="mt-5 space-y-3">
         {(product.optimizedTitles || []).map((title, index) => (
           <div key={`${title}-${index}`} className="rounded-2xl border border-[#e5edfb] bg-[#fbfdff] p-3">
