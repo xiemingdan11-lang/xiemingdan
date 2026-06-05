@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Bot,
   Check,
@@ -19,8 +19,10 @@ import {
   Sparkles,
   Tag,
   Trash2,
+  Upload,
   Wand2,
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 type ProductStatus = '考虑中' | '已选' | '已放弃';
 
@@ -83,6 +85,7 @@ export default function Home() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [taobaoUrl, setTaobaoUrl] = useState('');
   const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [optimizingId, setOptimizingId] = useState<number | null>(null);
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
   const [form, setForm] = useState<Omit<Product, 'id' | 'createdAt'>>({
@@ -206,6 +209,57 @@ export default function Home() {
       showToast('淘宝链接导入失败', 'error');
     } finally {
       setImporting(false);
+    }
+  };
+
+  const importExcel = async (file: File) => {
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
+
+      const imported = rows
+        .map((row, index): Product | null => {
+          const name = String(row['标题'] || row['商品标题'] || row['宝贝标题'] || '').trim();
+          const url = String(row['宝贝链接'] || row['商品链接'] || row['链接'] || '').trim();
+          const imageUrl = String(row['图片地址'] || row['主图'] || row['主图地址'] || '').trim();
+          const price = String(row['价格'] || row['售价'] || '').trim();
+          const sales = String(row['销量'] || '').trim();
+          const itemId = String(row['宝贝ID'] || row['商品ID'] || '').trim();
+
+          if (!name && !url && !imageUrl) return null;
+
+          return {
+            id: Date.now() + index,
+            name: name || `插件导入商品 ${index + 1}`,
+            url,
+            price,
+            category: '插件Excel导入',
+            notes: [itemId && `宝贝ID：${itemId}`, sales && `销量：${sales}`].filter(Boolean).join(' ｜ '),
+            status: '考虑中',
+            createdAt: new Date().toLocaleString('zh-CN'),
+            imageUrl,
+            detailText: '',
+            detailImages: [],
+            optimizedTitles: [],
+          };
+        })
+        .filter((item): item is Product => Boolean(item));
+
+      if (imported.length === 0) {
+        showToast('没有识别到可导入的商品行', 'error');
+        return;
+      }
+
+      const next = [...imported, ...products];
+      persistProducts(next);
+      setSelectedProductId(imported[0].id);
+      showToast(`已导入 ${imported.length} 条选品`);
+    } catch {
+      showToast('Excel 导入失败，请检查文件格式', 'error');
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -341,8 +395,8 @@ export default function Home() {
                 <section className="rounded-[30px] border border-white/80 bg-white p-6 shadow-xl shadow-blue-100/50">
                   <div className="mb-5 flex items-start justify-between gap-4">
                     <div>
-                      <h2 className="text-2xl font-black">淘宝链接导入</h2>
-                      <p className="mt-1 text-sm text-[#667085]">粘贴商品链接后自动保存标题、主图和详情图，再用 AI 生成三个合规标题版本。</p>
+                      <h2 className="text-2xl font-black">竞品资料导入</h2>
+                      <p className="mt-1 text-sm text-[#667085]">推荐使用插件导出的 Excel 批量导入标题、链接、主图、价格和销量，绕开淘宝反爬。</p>
                     </div>
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#2f6fe4]">
                       <Globe2 size={23} />
@@ -359,6 +413,25 @@ export default function Home() {
                     <button onClick={importTaobao} disabled={importing} className="flex h-13 items-center justify-center gap-2 rounded-2xl bg-[#2f6fe4] px-6 text-sm font-black text-white disabled:opacity-60">
                       {importing ? <Loader2 className="animate-spin" size={18} /> : <PackagePlus size={18} />}
                       自动保存
+                    </button>
+                  </div>
+                  <div className="mt-3 flex flex-col gap-3 rounded-3xl border border-dashed border-[#bdd3f3] bg-[#fbfdff] p-3 md:flex-row md:items-center md:justify-between">
+                    <div className="text-sm text-[#667085]">
+                      插件 Excel 支持列名：标题、宝贝ID、宝贝链接、图片地址、价格、销量。
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".xlsx,.xls"
+                      className="hidden"
+                      onChange={e => e.target.files?.[0] && importExcel(e.target.files[0])}
+                    />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex h-11 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-black text-[#2f6fe4] shadow-sm ring-1 ring-[#dbe8fb]"
+                    >
+                      <Upload size={17} />
+                      导入插件 Excel
                     </button>
                   </div>
                 </section>
