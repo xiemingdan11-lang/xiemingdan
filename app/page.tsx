@@ -34,6 +34,8 @@ type ProductItem = {
   note: string;
   resultImageUrl: string;
   detailImageUrl: string;
+  optimizedTitles: string[];
+  titleKeywords: string[];
   status: ProductStatus;
   createdAt: string;
 };
@@ -62,6 +64,8 @@ const demoItems: ProductItem[] = [
     note: "先用这条熟悉流程，正式导入后可删除。",
     resultImageUrl: "",
     detailImageUrl: "",
+    optimizedTitles: [],
+    titleKeywords: [],
     status: "pending",
     createdAt: new Date().toISOString()
   }
@@ -105,6 +109,7 @@ export default function HomePage() {
   const [query, setQuery] = useState("");
   const [toast, setToast] = useState("");
   const [importing, setImporting] = useState(false);
+  const [optimizing, setOptimizing] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -157,6 +162,55 @@ export default function HomePage() {
     await navigator.clipboard.writeText(text);
     showToast(message);
     if (active) patchItem(active.id, { status: "prompted" });
+  };
+
+  const optimizeTitles = async (targetItems: ProductItem[]) => {
+    const candidates = targetItems.filter((item) => item.sourceTitle.trim());
+    if (!candidates.length) {
+      showToast("没有可优化的标题");
+      return;
+    }
+
+    setOptimizing(true);
+    try {
+      const res = await fetch("/api/title-optimize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: candidates.map((item) => ({
+            id: item.id,
+            sourceTitle: item.sourceTitle,
+            price: item.price,
+            shop: item.shop,
+            note: item.note
+          }))
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        showToast(data.error || "标题优化失败");
+        return;
+      }
+
+      const resultMap = new Map<string, { recommended: string; titles: string[]; keywords: string[] }>(
+        data.items.map((item: { id: string; recommended: string; titles: string[]; keywords: string[] }) => [item.id, item])
+      );
+      setItems(items.map((item) => {
+        const result = resultMap.get(item.id);
+        if (!result) return item;
+        return normalizeStatus({
+          ...item,
+          newTitle: result.recommended || item.newTitle,
+          optimizedTitles: result.titles || [],
+          titleKeywords: result.keywords || []
+        });
+      }));
+      showToast(`已优化 ${resultMap.size} 个标题`);
+    } catch {
+      showToast("标题优化接口连接失败");
+    } finally {
+      setOptimizing(false);
+    }
   };
 
   const uploadResult = async (id: string, file: File, field: "resultImageUrl" | "detailImageUrl") => {
@@ -247,6 +301,7 @@ export default function HomePage() {
             />
             <IconButton icon={Upload} label={importing ? "导入中" : "导入表格"} onClick={() => fileRef.current?.click()} primary />
             <IconButton icon={Plus} label="手动新增" onClick={addBlank} />
+            <IconButton icon={RefreshCw} label={optimizing ? "优化中" : "批量优化标题"} onClick={() => optimizeTitles(items)} />
             <IconButton icon={Download} label="导出CSV" onClick={exportCsv} />
             <IconButton icon={ArrowDownToLine} label="导出ZIP" onClick={exportZip} />
           </div>
@@ -294,6 +349,8 @@ export default function HomePage() {
               item={active}
               onPatch={(patch) => patchItem(active.id, patch)}
               onCopy={copyText}
+              onOptimize={() => optimizeTitles([active])}
+              optimizing={optimizing}
               onUpload={uploadResult}
               onRemove={() => removeItem(active.id)}
             />
@@ -330,12 +387,16 @@ function ProductWorkspace({
   item,
   onPatch,
   onCopy,
+  onOptimize,
+  optimizing,
   onUpload,
   onRemove
 }: {
   item: ProductItem;
   onPatch: (patch: Partial<ProductItem>) => void;
   onCopy: (text: string, message: string) => void;
+  onOptimize: () => void;
+  optimizing: boolean;
   onUpload: (id: string, file: File, field: "resultImageUrl" | "detailImageUrl") => void;
   onRemove: () => void;
 }) {
@@ -351,6 +412,7 @@ function ProductWorkspace({
         </div>
         <div className="flex gap-2">
           {item.productUrl && <IconButton icon={LinkIcon} label="打开原链接" onClick={() => window.open(item.productUrl, "_blank")} />}
+          <IconButton icon={RefreshCw} label={optimizing ? "优化中" : "优化标题"} onClick={onOptimize} />
           <IconButton icon={Clipboard} label="复制主图话术" onClick={() => onCopy(buildImageInstruction(item), "主图话术已复制")} primary />
           <IconButton icon={Trash2} label="删除" onClick={onRemove} danger />
         </div>
@@ -372,6 +434,26 @@ function ProductWorkspace({
         <div className="space-y-3">
           <Field label="原标题" value={item.sourceTitle} onChange={(value) => onPatch({ sourceTitle: value })} textarea />
           <Field label="新标题" value={item.newTitle} onChange={(value) => onPatch({ newTitle: value })} textarea />
+          {!!item.optimizedTitles?.length && (
+            <div className="rounded-md border border-[#d8e0ec] p-3">
+              <div className="mb-2 flex items-center gap-2 text-xs font-medium text-[#667085]">
+                <CheckCircle2 className="h-4 w-4 text-[#1759d1]" />
+                DeepSeek 备选标题
+              </div>
+              <div className="space-y-2">
+                {item.optimizedTitles.map((title) => (
+                  <button
+                    key={title}
+                    onClick={() => onPatch({ newTitle: title })}
+                    className={`w-full rounded-md border px-3 py-2 text-left text-sm hover:border-[#1759d1] hover:bg-[#f7faff] ${title === item.newTitle ? "border-[#1759d1] bg-[#eef5ff]" : "border-[#e4e9f1]"}`}
+                  >
+                    {title}
+                  </button>
+                ))}
+              </div>
+              {!!item.titleKeywords?.length && <div className="mt-2 text-xs text-[#667085]">词根：{item.titleKeywords.join(" / ")}</div>}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <Field label="价格" value={item.price} onChange={(value) => onPatch({ price: value })} />
             <Field label="销量" value={item.sales} onChange={(value) => onPatch({ sales: value })} />
@@ -501,6 +583,8 @@ function rowToProduct(row: Record<string, unknown>): ProductItem {
     note: "",
     resultImageUrl: "",
     detailImageUrl: "",
+    optimizedTitles: [],
+    titleKeywords: [],
     status: "pending",
     createdAt: new Date().toISOString()
   });
@@ -522,7 +606,12 @@ function rewriteTitle(title: string) {
 
 function normalizeStatus(item: ProductItem): ProductItem {
   const status: ProductStatus = item.newTitle && item.resultImageUrl ? "ready" : item.resultImageUrl || item.detailImageUrl ? "uploaded" : item.status === "prompted" ? "prompted" : "pending";
-  return { ...item, status };
+  return {
+    ...item,
+    optimizedTitles: item.optimizedTitles ?? [],
+    titleKeywords: item.titleKeywords ?? [],
+    status
+  };
 }
 
 function buildImageInstruction(item: ProductItem) {
