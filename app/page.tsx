@@ -614,16 +614,16 @@ function normalizeStatus(item: ProductItem): ProductItem {
   };
 }
 
-function buildImageInstruction(item: ProductItem) {
-  return `帮我把这张图重新设计成淘宝虚拟商品主图。保留商品类型和大概卖点，但换一种排版、背景、字体和配色，不要出现原图里的店铺名、logo、水印、品牌标识。画面比例做成 1:1，整体要像新的商品图，不要太像原图。\n\n商品标题：${item.newTitle || item.sourceTitle}\n价格参考：${item.price || "按虚拟资料类商品常见价格处理"}\n补充要求：文字清晰，适合淘宝/闲鱼上架，视觉干净，有成交感。`;
+function buildImageInstruction(_item: ProductItem) {
+  return "帮我把这张图重新设计成淘宝虚拟商品主图。保留大概卖点，但换一种排版、背景、字体和配色，不要出现原图里的店铺名、logo、水印、品牌标识。画面比例做成 1:1，整体要像新的商品图，不要太像原图。";
 }
 
-function buildDetailInstruction(item: ProductItem) {
-  return `帮我参考这张详情页或商品图，重新做一版新的虚拟商品详情页长图。保留表达的信息结构，但文案、排版、颜色、图标和版式都重新设计。不要出现原图里的店铺名、logo、水印、品牌标识。\n\n商品标题：${item.newTitle || item.sourceTitle}\n需要包含：产品亮点、适合人群、交付内容、使用方式、购买须知、常见问题。`;
+function buildDetailInstruction(_item: ProductItem) {
+  return "帮我参考这张详情页或商品图，重新做一版新的虚拟商品详情页长图。保留大概信息结构，但文案、排版、颜色、图标和版式都重新设计，不要出现原图里的店铺名、logo、水印、品牌标识。";
 }
 
-function buildTitleInstruction(item: ProductItem) {
-  return `帮我把这个淘宝/闲鱼商品标题重新优化一下，保留核心搜索词，调整词序，去掉品牌词、店铺词和侵权风险词，生成 5 个适合上架的标题。每个标题不要太短，要覆盖长尾搜索词。\n\n原标题：${item.sourceTitle}\n商品价格：${item.price || "未填"}`;
+function buildTitleInstruction(_item: ProductItem) {
+  return "帮我把这个淘宝/闲鱼商品标题重新优化一下，保留核心搜索词，调整词序，去掉品牌词、店铺词和侵权风险词，生成 5 个适合上架的标题。";
 }
 
 function toCsv(rows: Record<string, unknown>[]) {
