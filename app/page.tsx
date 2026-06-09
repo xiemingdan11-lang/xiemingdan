@@ -405,23 +405,23 @@ function ProductWorkspace({
 }) {
   return (
     <div className="grid h-full grid-rows-[auto_1fr]">
-      <div className="flex items-center justify-between border-b border-white/[0.08] bg-white/[0.025] p-4">
-        <div>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 border-b border-white/[0.08] bg-white/[0.025] p-4">
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
             <StatusBadge status={item.status} />
             <span className="text-xs text-[#8b95a7]">{new Date(item.createdAt).toLocaleString("zh-CN")}</span>
           </div>
-          <h2 className="mt-2 max-w-3xl text-lg font-semibold text-white">{item.newTitle || item.sourceTitle}</h2>
+          <h2 className="mt-2 line-clamp-2 max-w-4xl text-[22px] font-semibold leading-tight tracking-normal text-white">{item.newTitle || item.sourceTitle}</h2>
         </div>
-        <div className="flex gap-2">
-          {item.productUrl && <IconButton icon={LinkIcon} label="打开原链接" onClick={() => window.open(item.productUrl, "_blank")} />}
-          <IconButton icon={RefreshCw} label={optimizing ? "优化中" : "优化标题"} onClick={onOptimize} />
-          <IconButton icon={Clipboard} label="复制主图话术" onClick={() => onCopy(buildImageInstruction(item), "主图话术已复制")} primary />
+        <div className="flex shrink-0 items-center justify-end gap-2 rounded-xl border border-white/[0.06] bg-black/20 p-1">
+          {item.productUrl && <IconButton icon={LinkIcon} label="原链" onClick={() => window.open(item.productUrl, "_blank")} />}
+          <IconButton icon={RefreshCw} label={optimizing ? "优化中" : "标题"} onClick={onOptimize} />
+          <IconButton icon={Clipboard} label="主图" onClick={() => onCopy(buildImageInstruction(item), "主图话术已复制")} primary />
           <IconButton icon={Trash2} label="删除" onClick={onRemove} danger />
         </div>
       </div>
 
-      <div className="grid grid-cols-[minmax(0,1fr)_320px] gap-4 overflow-auto p-4">
+      <div className="grid grid-cols-[minmax(0,1fr)_300px] gap-4 overflow-auto p-4">
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <ImagePanel title="原始主图" src={item.imageUrl} empty="表格里没有识别到主图链接" />
@@ -434,7 +434,7 @@ function ProductWorkspace({
           <ImagePanel title="GPT 成品详情页" src={item.detailImageUrl} empty="可选：详情页处理完后上传到这里" wide />
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           <Field label="原标题" value={item.sourceTitle} onChange={(value) => onPatch({ sourceTitle: value })} textarea />
           <Field label="新标题" value={item.newTitle} onChange={(value) => onPatch({ newTitle: value })} textarea />
           {!!item.optimizedTitles?.length && (
@@ -475,7 +475,7 @@ function IconButton({ icon: Icon, label, onClick, primary, danger }: { icon: typ
   return (
     <button
       onClick={onClick}
-      className={`inline-flex h-9 items-center gap-2 rounded-md border px-3 text-sm font-medium transition ${
+      className={`inline-flex h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-sm font-medium leading-none transition ${
         primary
           ? "border-[#8fb3ff]/50 bg-[#4776ff] text-white shadow-[0_0_28px_rgba(71,118,255,0.28)] hover:bg-[#5d87ff]"
           : danger
@@ -483,8 +483,8 @@ function IconButton({ icon: Icon, label, onClick, primary, danger }: { icon: typ
             : "border-white/[0.08] bg-white/[0.065] text-[#dce5f2] hover:border-[#8fb3ff]/35 hover:bg-white/[0.11]"
       }`}
     >
-      <Icon className="h-4 w-4" />
-      {label}
+      <Icon className="h-4 w-4 shrink-0" />
+      <span className="truncate">{label}</span>
     </button>
   );
 }
@@ -541,9 +541,9 @@ function UploadPanel({ label, onFile }: { label: string; onFile: (file: File) =>
 function Field({ label, value, onChange, textarea }: { label: string; value: string; onChange: (value: string) => void; textarea?: boolean }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium text-[#8b95a7]">{label}</span>
+      <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-[#8b95a7]">{label}</span>
       {textarea ? (
-        <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={3} className="w-full resize-none rounded-lg border border-white/[0.08] bg-black/20 px-3 py-2 text-sm text-white outline-none transition placeholder:text-[#687386] focus:border-[#8fb3ff]/55" />
+        <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={2} className="w-full resize-none rounded-lg border border-white/[0.08] bg-black/20 px-3 py-2 text-sm leading-5 text-white outline-none transition placeholder:text-[#687386] focus:border-[#8fb3ff]/55" />
       ) : (
         <input value={value} onChange={(e) => onChange(e.target.value)} className="h-9 w-full rounded-lg border border-white/[0.08] bg-black/20 px-3 text-sm text-white outline-none transition placeholder:text-[#687386] focus:border-[#8fb3ff]/55" />
       )}
