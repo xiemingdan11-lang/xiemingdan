@@ -279,16 +279,19 @@ export default function HomePage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#f4f7fb] text-[#142033]">
-      <div className="border-b border-[#d8e0ec] bg-white">
-        <div className="mx-auto flex max-w-[1500px] items-center justify-between px-5 py-4">
+    <main className="min-h-screen overflow-hidden bg-[#07090d] text-[#f6f8fb]">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(71,118,255,0.22),transparent_32%),radial-gradient(circle_at_88%_10%,rgba(18,196,159,0.12),transparent_30%),linear-gradient(180deg,#07090d,#0a0d13_48%,#07090d)]" />
+      <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] bg-[size:56px_56px] opacity-30" />
+      <div className="relative border-b border-white/[0.08] bg-[#090c12]/80 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-[1580px] items-center justify-between px-5 py-4">
           <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-md bg-[#1759d1] text-white">
+            <div className="grid h-11 w-11 place-items-center rounded-lg border border-white/10 bg-white/[0.08] text-[#8fb3ff] shadow-[0_0_36px_rgba(71,118,255,0.22)]">
               <PackageCheck className="h-5 w-5" />
             </div>
             <div>
+              <div className="text-[11px] font-medium uppercase tracking-[0.28em] text-[#8fb3ff]">AI Product Factory</div>
               <h1 className="text-lg font-semibold">批量仿品加工台</h1>
-              <p className="text-xs text-[#667085]">导入竞品表格，逐个喂给 GPT，回收成品图并导出上架包</p>
+              <p className="text-xs text-[#8b95a7]">导入竞品表格，逐个喂给 GPT，回收成品图并导出上架包</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -308,18 +311,18 @@ export default function HomePage() {
         </div>
       </div>
 
-      <div className="mx-auto grid max-w-[1500px] grid-cols-[320px_minmax(0,1fr)_360px] gap-4 px-5 py-4">
-        <aside className="min-h-[calc(100vh-104px)] border border-[#d8e0ec] bg-white">
-          <div className="border-b border-[#e4e9f1] p-4">
+      <div className="relative mx-auto grid max-w-[1580px] grid-cols-[340px_minmax(0,1fr)_380px] gap-4 px-5 py-4">
+        <aside className="min-h-[calc(100vh-104px)] overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.055] shadow-2xl shadow-black/30 backdrop-blur-xl">
+          <div className="border-b border-white/[0.08] p-4">
             <div className="grid grid-cols-4 gap-2 text-center">
               <Metric label="总数" value={stats.total} />
               <Metric label="待做" value={stats.pending} />
               <Metric label="有图" value={stats.uploaded} />
               <Metric label="可导" value={stats.ready} />
             </div>
-            <div className="mt-4 flex items-center gap-2 rounded-md border border-[#d8e0ec] px-3 py-2">
-              <Search className="h-4 w-4 text-[#667085]" />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索标题 / 店铺 / 备注" className="w-full bg-transparent text-sm outline-none" />
+            <div className="mt-4 flex items-center gap-2 rounded-lg border border-white/[0.08] bg-black/20 px-3 py-2">
+              <Search className="h-4 w-4 text-[#8b95a7]" />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索标题 / 店铺 / 备注" className="w-full bg-transparent text-sm text-white outline-none placeholder:text-[#687386]" />
             </div>
           </div>
           <div className="max-h-[calc(100vh-230px)] overflow-auto">
@@ -327,23 +330,23 @@ export default function HomePage() {
               <button
                 key={item.id}
                 onClick={() => setActiveId(item.id)}
-                className={`flex w-full gap-3 border-b border-[#edf1f7] p-3 text-left hover:bg-[#f7faff] ${item.id === active?.id ? "bg-[#eef5ff]" : ""}`}
+                className={`flex w-full gap-3 border-b border-white/[0.06] p-3 text-left transition hover:bg-white/[0.075] ${item.id === active?.id ? "bg-[#4776ff]/15 ring-1 ring-inset ring-[#4776ff]/30" : ""}`}
               >
                 <Thumb src={item.resultImageUrl || item.imageUrl} />
                 <div className="min-w-0 flex-1">
                   <div className="mb-1 flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold text-[#1759d1]">#{String(index + 1).padStart(3, "0")}</span>
+                    <span className="text-xs font-semibold text-[#8fb3ff]">#{String(index + 1).padStart(3, "0")}</span>
                     <StatusBadge status={item.status} />
                   </div>
-                  <div className="line-clamp-2 text-sm font-medium">{item.newTitle || item.sourceTitle || "未命名商品"}</div>
-                  <div className="mt-1 truncate text-xs text-[#667085]">{item.price ? `¥${item.price}` : "未填价格"} {item.sales ? ` · ${item.sales}` : ""}</div>
+                  <div className="line-clamp-2 text-sm font-medium text-[#f6f8fb]">{item.newTitle || item.sourceTitle || "未命名商品"}</div>
+                  <div className="mt-1 truncate text-xs text-[#8b95a7]">{item.price ? `¥${item.price}` : "未填价格"} {item.sales ? ` · ${item.sales}` : ""}</div>
                 </div>
               </button>
             ))}
           </div>
         </aside>
 
-        <section className="min-h-[calc(100vh-104px)] border border-[#d8e0ec] bg-white">
+        <section className="min-h-[calc(100vh-104px)] overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.055] shadow-2xl shadow-black/30 backdrop-blur-xl">
           {active ? (
             <ProductWorkspace
               item={active}
@@ -355,17 +358,17 @@ export default function HomePage() {
               onRemove={() => removeItem(active.id)}
             />
           ) : (
-            <div className="grid h-full place-items-center text-[#667085]">先导入表格或新增商品</div>
+            <div className="grid h-full place-items-center text-[#8b95a7]">先导入表格或新增商品</div>
           )}
         </section>
 
-        <aside className="min-h-[calc(100vh-104px)] border border-[#d8e0ec] bg-white">
-          <div className="border-b border-[#e4e9f1] p-4">
+        <aside className="min-h-[calc(100vh-104px)] overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.055] shadow-2xl shadow-black/30 backdrop-blur-xl">
+          <div className="border-b border-white/[0.08] p-4">
             <div className="flex items-center gap-2 font-semibold">
-              <Clipboard className="h-4 w-4 text-[#1759d1]" />
+              <Clipboard className="h-4 w-4 text-[#8fb3ff]" />
               GPT 操作话术
             </div>
-            <p className="mt-1 text-xs text-[#667085]">不用写提示词，点复制后把原图和这段话一起发给 GPT。</p>
+            <p className="mt-1 text-xs text-[#8b95a7]">不用写提示词，点复制后把原图和这段话一起发给 GPT。</p>
           </div>
           {active && (
             <div className="space-y-4 p-4">
@@ -377,8 +380,8 @@ export default function HomePage() {
         </aside>
       </div>
 
-      {toast && <div className="fixed bottom-5 left-1/2 -translate-x-1/2 rounded-md bg-[#142033] px-4 py-2 text-sm text-white shadow-lg">{toast}</div>}
-      {!loaded && <div className="fixed inset-x-0 top-0 h-1 animate-pulse bg-[#1759d1]" />}
+      {toast && <div className="fixed bottom-5 left-1/2 -translate-x-1/2 rounded-lg border border-white/10 bg-[#101722] px-4 py-2 text-sm text-white shadow-2xl shadow-black/40">{toast}</div>}
+      {!loaded && <div className="fixed inset-x-0 top-0 h-1 animate-pulse bg-[#8fb3ff]" />}
     </main>
   );
 }
@@ -402,13 +405,13 @@ function ProductWorkspace({
 }) {
   return (
     <div className="grid h-full grid-rows-[auto_1fr]">
-      <div className="flex items-center justify-between border-b border-[#e4e9f1] p-4">
+      <div className="flex items-center justify-between border-b border-white/[0.08] bg-white/[0.025] p-4">
         <div>
           <div className="flex items-center gap-2">
             <StatusBadge status={item.status} />
-            <span className="text-xs text-[#667085]">{new Date(item.createdAt).toLocaleString("zh-CN")}</span>
+            <span className="text-xs text-[#8b95a7]">{new Date(item.createdAt).toLocaleString("zh-CN")}</span>
           </div>
-          <h2 className="mt-2 max-w-3xl text-lg font-semibold">{item.newTitle || item.sourceTitle}</h2>
+          <h2 className="mt-2 max-w-3xl text-lg font-semibold text-white">{item.newTitle || item.sourceTitle}</h2>
         </div>
         <div className="flex gap-2">
           {item.productUrl && <IconButton icon={LinkIcon} label="打开原链接" onClick={() => window.open(item.productUrl, "_blank")} />}
@@ -435,9 +438,9 @@ function ProductWorkspace({
           <Field label="原标题" value={item.sourceTitle} onChange={(value) => onPatch({ sourceTitle: value })} textarea />
           <Field label="新标题" value={item.newTitle} onChange={(value) => onPatch({ newTitle: value })} textarea />
           {!!item.optimizedTitles?.length && (
-            <div className="rounded-md border border-[#d8e0ec] p-3">
-              <div className="mb-2 flex items-center gap-2 text-xs font-medium text-[#667085]">
-                <CheckCircle2 className="h-4 w-4 text-[#1759d1]" />
+            <div className="rounded-xl border border-white/[0.08] bg-black/20 p-3">
+              <div className="mb-2 flex items-center gap-2 text-xs font-medium text-[#8b95a7]">
+                <CheckCircle2 className="h-4 w-4 text-[#8fb3ff]" />
                 DeepSeek 备选标题
               </div>
               <div className="space-y-2">
@@ -445,13 +448,13 @@ function ProductWorkspace({
                   <button
                     key={title}
                     onClick={() => onPatch({ newTitle: title })}
-                    className={`w-full rounded-md border px-3 py-2 text-left text-sm hover:border-[#1759d1] hover:bg-[#f7faff] ${title === item.newTitle ? "border-[#1759d1] bg-[#eef5ff]" : "border-[#e4e9f1]"}`}
+                    className={`w-full rounded-lg border px-3 py-2 text-left text-sm text-[#dce5f2] transition hover:border-[#8fb3ff]/45 hover:bg-white/[0.08] ${title === item.newTitle ? "border-[#8fb3ff]/55 bg-[#4776ff]/15" : "border-white/[0.08] bg-white/[0.03]"}`}
                   >
                     {title}
                   </button>
                 ))}
               </div>
-              {!!item.titleKeywords?.length && <div className="mt-2 text-xs text-[#667085]">词根：{item.titleKeywords.join(" / ")}</div>}
+              {!!item.titleKeywords?.length && <div className="mt-2 text-xs text-[#8b95a7]">词根：{item.titleKeywords.join(" / ")}</div>}
             </div>
           )}
           <div className="grid grid-cols-2 gap-3">
@@ -474,10 +477,10 @@ function IconButton({ icon: Icon, label, onClick, primary, danger }: { icon: typ
       onClick={onClick}
       className={`inline-flex h-9 items-center gap-2 rounded-md border px-3 text-sm font-medium transition ${
         primary
-          ? "border-[#1759d1] bg-[#1759d1] text-white hover:bg-[#1249ad]"
+          ? "border-[#8fb3ff]/50 bg-[#4776ff] text-white shadow-[0_0_28px_rgba(71,118,255,0.28)] hover:bg-[#5d87ff]"
           : danger
-            ? "border-[#ffd8df] bg-white text-[#d92d4b] hover:bg-[#fff5f7]"
-            : "border-[#d8e0ec] bg-white text-[#344054] hover:bg-[#f7faff]"
+            ? "border-[#ff6f8e]/30 bg-[#ff5c7a]/10 text-[#ff9ab0] hover:bg-[#ff5c7a]/18"
+            : "border-white/[0.08] bg-white/[0.065] text-[#dce5f2] hover:border-[#8fb3ff]/35 hover:bg-white/[0.11]"
       }`}
     >
       <Icon className="h-4 w-4" />
@@ -488,9 +491,9 @@ function IconButton({ icon: Icon, label, onClick, primary, danger }: { icon: typ
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-md border border-[#e4e9f1] bg-[#f7faff] p-2">
-      <div className="text-base font-semibold">{value}</div>
-      <div className="text-[11px] text-[#667085]">{label}</div>
+    <div className="rounded-lg border border-white/[0.08] bg-black/20 p-2">
+      <div className="text-base font-semibold text-white">{value}</div>
+      <div className="text-[11px] text-[#8b95a7]">{label}</div>
     </div>
   );
 }
@@ -502,32 +505,32 @@ function StatusBadge({ status }: { status: ProductStatus }) {
     uploaded: "已传图",
     ready: "可导出"
   };
-  return <span className="rounded bg-[#eaf1ff] px-2 py-0.5 text-xs font-medium text-[#1759d1]">{map[status]}</span>;
+  return <span className="rounded-md border border-[#8fb3ff]/20 bg-[#4776ff]/12 px-2 py-0.5 text-xs font-medium text-[#9fbdff]">{map[status]}</span>;
 }
 
 function Thumb({ src }: { src: string }) {
   return (
-    <div className="h-14 w-14 shrink-0 overflow-hidden rounded-md border border-[#e4e9f1] bg-[#f1f4f8]">
-      {src ? <img src={src} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center"><FileSpreadsheet className="h-5 w-5 text-[#98a2b3]" /></div>}
+    <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-white/[0.08] bg-black/25">
+      {src ? <img src={src} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center"><FileSpreadsheet className="h-5 w-5 text-[#687386]" /></div>}
     </div>
   );
 }
 
 function ImagePanel({ title, src, empty, wide }: { title: string; src: string; empty: string; wide?: boolean }) {
   return (
-    <div className={`${wide ? "min-h-[320px]" : "aspect-square"} overflow-hidden rounded-md border border-[#d8e0ec] bg-[#f7faff]`}>
-      <div className="flex h-10 items-center justify-between border-b border-[#e4e9f1] bg-white px-3 text-sm font-medium">
+    <div className={`${wide ? "min-h-[320px]" : "aspect-square"} overflow-hidden rounded-xl border border-white/[0.08] bg-black/20`}>
+      <div className="flex h-10 items-center justify-between border-b border-white/[0.08] bg-white/[0.035] px-3 text-sm font-medium text-[#edf3ff]">
         {title}
-        {src && <a href={src} download className="text-xs text-[#1759d1]">下载</a>}
+        {src && <a href={src} download className="text-xs text-[#8fb3ff]">下载</a>}
       </div>
-      {src ? <img src={src} alt={title} className="h-[calc(100%-40px)] w-full object-contain" /> : <div className="grid h-[calc(100%-40px)] place-items-center px-6 text-center text-sm text-[#667085]">{empty}</div>}
+      {src ? <img src={src} alt={title} className="h-[calc(100%-40px)] w-full object-contain" /> : <div className="grid h-[calc(100%-40px)] place-items-center px-6 text-center text-sm text-[#8b95a7]">{empty}</div>}
     </div>
   );
 }
 
 function UploadPanel({ label, onFile }: { label: string; onFile: (file: File) => void }) {
   return (
-    <label className="flex h-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-[#a9b8cf] bg-[#fbfcff] text-sm text-[#475467] hover:border-[#1759d1] hover:text-[#1759d1]">
+    <label className="flex h-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-white/[0.18] bg-white/[0.035] text-sm text-[#aeb8c9] transition hover:border-[#8fb3ff]/50 hover:bg-[#4776ff]/10 hover:text-[#dce7ff]">
       <ImageUp className="h-5 w-5" />
       {label}
       <input type="file" accept="image/*" className="hidden" onChange={(event) => event.target.files?.[0] && onFile(event.target.files[0])} />
@@ -538,11 +541,11 @@ function UploadPanel({ label, onFile }: { label: string; onFile: (file: File) =>
 function Field({ label, value, onChange, textarea }: { label: string; value: string; onChange: (value: string) => void; textarea?: boolean }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium text-[#667085]">{label}</span>
+      <span className="mb-1 block text-xs font-medium text-[#8b95a7]">{label}</span>
       {textarea ? (
-        <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={3} className="w-full resize-none rounded-md border border-[#d8e0ec] px-3 py-2 text-sm outline-none focus:border-[#1759d1]" />
+        <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={3} className="w-full resize-none rounded-lg border border-white/[0.08] bg-black/20 px-3 py-2 text-sm text-white outline-none transition placeholder:text-[#687386] focus:border-[#8fb3ff]/55" />
       ) : (
-        <input value={value} onChange={(e) => onChange(e.target.value)} className="h-9 w-full rounded-md border border-[#d8e0ec] px-3 text-sm outline-none focus:border-[#1759d1]" />
+        <input value={value} onChange={(e) => onChange(e.target.value)} className="h-9 w-full rounded-lg border border-white/[0.08] bg-black/20 px-3 text-sm text-white outline-none transition placeholder:text-[#687386] focus:border-[#8fb3ff]/55" />
       )}
     </label>
   );
@@ -550,12 +553,12 @@ function Field({ label, value, onChange, textarea }: { label: string; value: str
 
 function PromptBox({ title, text, onCopy }: { title: string; text: string; onCopy: () => void }) {
   return (
-    <div className="rounded-md border border-[#d8e0ec]">
-      <div className="flex items-center justify-between border-b border-[#e4e9f1] px-3 py-2">
-        <div className="flex items-center gap-2 text-sm font-medium"><Wand2 className="h-4 w-4 text-[#1759d1]" />{title}</div>
-        <button onClick={onCopy} className="text-xs font-medium text-[#1759d1]">复制</button>
+    <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-black/20">
+      <div className="flex items-center justify-between border-b border-white/[0.08] bg-white/[0.035] px-3 py-2">
+        <div className="flex items-center gap-2 text-sm font-medium text-[#edf3ff]"><Wand2 className="h-4 w-4 text-[#8fb3ff]" />{title}</div>
+        <button onClick={onCopy} className="text-xs font-medium text-[#8fb3ff]">复制</button>
       </div>
-      <div className="max-h-48 overflow-auto whitespace-pre-wrap p-3 text-sm leading-6 text-[#344054]">{text}</div>
+      <div className="max-h-48 overflow-auto whitespace-pre-wrap p-3 text-sm leading-6 text-[#cbd5e4]">{text}</div>
     </div>
   );
 }
