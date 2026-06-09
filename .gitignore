@@ -2,6 +2,8 @@
 node_modules
 out
 dist
+data
+public/uploads
 .env*
 !.env.example
 npm-debug.log*
