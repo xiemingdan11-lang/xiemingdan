@@ -424,7 +424,7 @@ function MiniCard({ shot }) {
         transition: "border-color 0.3s, box-shadow 0.3s",
       }}>
         <img
-          src={`/shots/${shot.id}.jpg`}
+          src={shot.imageUrl}
           alt={shot.keyword || shot.roomName}
           onLoad={e => setClr(getDominantColor(e.currentTarget))}
           crossOrigin="anonymous"
@@ -439,7 +439,7 @@ function MiniCard({ shot }) {
         {shot.keyword || shot.roomName || "截图"}
       </div>
       <div style={{ fontSize: 10, color: "rgba(100,116,139,0.65)", marginTop: 2 }}>
-        {fmtTime(shot.createdAt)}
+        {fmtTime(shot.capturedAt)}
       </div>
     </div>
   );
@@ -491,7 +491,7 @@ function DisplayMode({ rooms, shots, onCapture, onAddRoom }) {
     if (!keyword.trim()) return;
     setCapturing(true);
     try {
-      await fetch("/api/live/capture", {
+      await fetch("/api/live/agent/commands", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "search-capture", keyword: keyword.trim(), limit: 8 }),
@@ -505,7 +505,7 @@ function DisplayMode({ rooms, shots, onCapture, onAddRoom }) {
 
   async function handleCaptureRoom(roomId) {
     try {
-      await fetch("/api/live/capture", {
+      await fetch("/api/live/agent/commands", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "capture-room", roomId }),
@@ -556,7 +556,7 @@ function DisplayMode({ rooms, shots, onCapture, onAddRoom }) {
                     key={room.id}
                     id={room.id}
                     name={room.name}
-                    imgSrc={room.lastShotId ? `/shots/${room.lastShotId}.jpg` : null}
+                    imgSrc={room.lastShotId ? (shots.find(s => s.id === room.lastShotId)?.imageUrl || null) : null}
                     enabled={room.enabled}
                     lastRunAt={room.lastRunAt}
                     lastError={room.lastError}
@@ -845,13 +845,13 @@ function HistoryMode({ commands, shots, rooms }) {
             {shots.map(shot => (
               <div key={shot.id} style={{ breakInside: "avoid", marginBottom: 12 }}>
                 <div style={{ borderRadius: 10, overflow: "hidden", aspectRatio: "9/16", background: "#0a0e17", position: "relative" }}>
-                  <img src={`/shots/${shot.id}.jpg`} alt={shot.keyword}
+                  <img src={shot.imageUrl} alt={shot.keyword}
                     style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "45%",
                     background: "linear-gradient(to top, rgba(3,5,14,0.9), transparent)" }}/>
                   <div style={{ position: "absolute", bottom: 8, left: 9, right: 9 }}>
                     <div style={{ fontSize: 11, color: "#e2e8f0", fontWeight: 500 }}>{shot.keyword || shot.roomName}</div>
-                    <div style={{ fontSize: 10, color: "rgba(148,163,184,0.5)", marginTop: 2 }}>{fmtTime(shot.createdAt)}</div>
+                    <div style={{ fontSize: 10, color: "rgba(148,163,184,0.5)", marginTop: 2 }}>{fmtTime(shot.capturedAt)}</div>
                   </div>
                 </div>
               </div>
