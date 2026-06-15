@@ -1,12 +1,13 @@
-import type { Metadata } from 'next';
-import './globals.css';
+import type { Metadata } from "next";
+import type { ReactNode } from "react";
+import "./globals.css";
 
 export const metadata: Metadata = {
-  title: '选品助手',
-  description: '虚拟商品选品记录 & 热点话题分析',
+  title: "抖音直播间截图发布台",
+  description: "定时采集并发布直播间截图"
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="zh-CN">
       <body>{children}</body>

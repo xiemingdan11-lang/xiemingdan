@@ -6,6 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "live:login": "node scripts/live-login-state.mjs",
+    "live:local-agent": "node scripts/local-live-capture-agent.mjs",
+    "live:worker": "node scripts/live-capture-worker.mjs",
     "lint": "next lint"
   },
   "dependencies": {
@@ -13,6 +16,7 @@
     "jszip": "^3.10.1",
     "lucide-react": "^0.468.0",
     "next": "^15.0.0",
+    "playwright": "^1.52.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "xlsx": "^0.18.5"

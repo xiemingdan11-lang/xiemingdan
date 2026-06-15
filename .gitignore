@@ -4,6 +4,10 @@ out
 dist
 data
 public/uploads
+public/live-shots
+public/live-search
+secrets
+*.storage-state.json
 .env*
 !.env.example
 npm-debug.log*
