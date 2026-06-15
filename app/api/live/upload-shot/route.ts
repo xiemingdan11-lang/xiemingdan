@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { NextResponse } from "next/server";
+import { hasLiveBackend, proxyLiveForm } from "@/lib/live-backend";
 import { LiveRoom, LiveShot, makeId, readLiveStore, writeLiveStore } from "@/lib/live-store";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +10,8 @@ export const runtime = "nodejs";
 const SHOT_DIR = path.join(process.cwd(), "public", "live-shots");
 
 export async function POST(request: Request) {
+  if (hasLiveBackend()) return proxyLiveForm(request, "/api/live/upload-shot");
+
   const form = await request.formData().catch(() => null);
   const roomId = String(form?.get("roomId") || "");
   const roomName = String(form?.get("roomName") || "临时直播间");

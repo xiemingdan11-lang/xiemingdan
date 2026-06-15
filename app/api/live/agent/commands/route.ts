@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { hasLiveBackend, proxyLiveJson } from "@/lib/live-backend";
 import { AgentCommand, makeId, readLiveStore, writeLiveStore } from "@/lib/live-store";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +22,8 @@ type UpdateBody = {
 const STALE_RUNNING_MS = 3 * 60 * 1000;
 
 export async function GET() {
+  if (hasLiveBackend()) return proxyLiveJson(new Request("http://local", { method: "GET" }), "/api/live/agent/commands");
+
   const store = await readLiveStore();
   const commands = store.commands ?? [];
   const nowMs = Date.now();
@@ -48,6 +51,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  if (hasLiveBackend()) return proxyLiveJson(request, "/api/live/agent/commands");
+
   const body = (await request.json().catch(() => ({}))) as CreateBody;
   if (body.type !== "capture-room" && body.type !== "search-capture") {
     return NextResponse.json({ error: "Unsupported command type." }, { status: 400 });
@@ -80,6 +85,8 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  if (hasLiveBackend()) return proxyLiveJson(request, "/api/live/agent/commands");
+
   const body = (await request.json().catch(() => ({}))) as UpdateBody;
   if (!body.id || (body.status !== "done" && body.status !== "failed")) {
     return NextResponse.json({ error: "id and status are required." }, { status: 400 });

@@ -533,7 +533,7 @@ function DisplayMode({ rooms, shots, onCapture, onAddRoom }) {
       const res = await fetch("/api/live/agent/commands", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "search-capture", keyword: keyword.trim(), limit: 8 }),
+        body: JSON.stringify({ type: "search-capture", keyword: keyword.trim(), limit: 1 }),
       });
       if (res.ok) {
         setCaptureMsg("✅ 指令已发送，等待共享电脑抓取...");

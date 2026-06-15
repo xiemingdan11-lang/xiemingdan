@@ -2,6 +2,7 @@ import { existsSync } from "fs";
 import { mkdir } from "fs/promises";
 import path from "path";
 import { NextResponse } from "next/server";
+import { hasLiveBackend, proxyLiveJson } from "@/lib/live-backend";
 import { isValidHttpUrl, LiveShot, makeId, readLiveStore, writeLiveStore } from "@/lib/live-store";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +17,8 @@ type CaptureBody = {
 };
 
 export async function POST(request: Request) {
+  if (hasLiveBackend()) return proxyLiveJson(request, "/api/live/capture");
+
   const body = (await request.json().catch(() => ({}))) as CaptureBody;
   const store = await readLiveStore();
   const room = store.rooms.find((item) => item.id === body.roomId);

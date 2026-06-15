@@ -1,6 +1,7 @@
 import { unlink } from "fs/promises";
 import path from "path";
 import { NextResponse } from "next/server";
+import { hasLiveBackend, proxyLiveJson } from "@/lib/live-backend";
 import { LiveShot, readLiveStore, writeLiveStore } from "@/lib/live-store";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +19,8 @@ type DeleteBody = {
 };
 
 export async function DELETE(request: Request) {
+  if (hasLiveBackend()) return proxyLiveJson(request, "/api/live/shots");
+
   const body = (await request.json().catch(() => ({}))) as DeleteBody;
   const store = await readLiveStore();
 

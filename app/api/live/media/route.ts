@@ -1,6 +1,7 @@
 import { readFile } from "fs/promises";
 import path from "path";
 import { NextResponse } from "next/server";
+import { hasLiveBackend, proxyLiveMedia } from "@/lib/live-backend";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -11,6 +12,8 @@ const ROOTS = {
 };
 
 export async function GET(request: Request) {
+  if (hasLiveBackend()) return proxyLiveMedia(request, "/api/live/media");
+
   const url = new URL(request.url);
   const kind = url.searchParams.get("kind");
   const file = url.searchParams.get("file");

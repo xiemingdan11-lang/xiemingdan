@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
+import { hasLiveBackend, proxyLiveJson } from "@/lib/live-backend";
 import { isValidHttpUrl, LiveRoom, normalizeRoom, readLiveStore, writeLiveStore } from "@/lib/live-store";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (hasLiveBackend()) return proxyLiveJson(request, "/api/live/rooms");
+
   return NextResponse.json(await readLiveStore(), {
     headers: {
       "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate"
@@ -13,6 +16,8 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
+  if (hasLiveBackend()) return proxyLiveJson(request, "/api/live/rooms");
+
   const body = (await request.json().catch(() => null)) as { rooms?: Partial<LiveRoom>[] } | null;
   if (!body || !Array.isArray(body.rooms)) {
     return NextResponse.json({ error: "rooms must be an array." }, { status: 400 });

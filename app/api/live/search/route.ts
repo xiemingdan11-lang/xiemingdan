@@ -2,6 +2,7 @@ import { existsSync } from "fs";
 import { mkdir } from "fs/promises";
 import path from "path";
 import { NextResponse } from "next/server";
+import { hasLiveBackend, proxyLiveJson } from "@/lib/live-backend";
 import { makeId } from "@/lib/live-store";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,8 @@ type PageDiagnostics = {
 };
 
 export async function POST(request: Request) {
+  if (hasLiveBackend()) return proxyLiveJson(request, "/api/live/search");
+
   const body = (await request.json().catch(() => ({}))) as SearchBody;
   const keyword = String(body.keyword || "").trim();
 
