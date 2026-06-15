@@ -13,7 +13,8 @@ const runOnce = process.env.LIVE_CAPTURE_ONCE === "1";
 const forceNow = process.env.LIVE_CAPTURE_FORCE === "1";
 const onlyRoomId = process.env.LIVE_CAPTURE_ROOM_ID || "";
 const fired = new Set();
-const VIEWPORT = { width: 1920, height: 1080 };
+const VIEWPORT = { width: 1080, height: 1920 };
+const PORTRAIT_RATIO = 9 / 16;
 
 function todayKey(roomId, time) {
   const now = new Date();
@@ -165,17 +166,40 @@ async function captureCleanLive(page) {
     return candidates[0] || null;
   });
 
-  if (!videoBox) return page.screenshot({ fullPage: false, type: "jpeg", quality: 72 });
+  if (!videoBox) return page.screenshot({ fullPage: false, type: "jpeg", quality: 78 });
+  const clip = makePortraitClip(videoBox);
   return page.screenshot({
     type: "jpeg",
-    quality: 72,
-    clip: {
-      x: Math.floor(videoBox.x),
-      y: Math.floor(videoBox.y),
-      width: Math.floor(videoBox.width),
-      height: Math.floor(videoBox.height)
-    }
+    quality: 78,
+    clip
   });
+}
+
+function makePortraitClip(box) {
+  let { x, y, width, height } = box;
+  const ratio = width / height;
+
+  if (ratio > PORTRAIT_RATIO) {
+    const nextWidth = height * PORTRAIT_RATIO;
+    x += (width - nextWidth) / 2;
+    width = nextWidth;
+  } else if (ratio < PORTRAIT_RATIO) {
+    const nextHeight = width / PORTRAIT_RATIO;
+    y += (height - nextHeight) / 2;
+    height = nextHeight;
+  }
+
+  x = Math.max(0, x);
+  y = Math.max(0, y);
+  width = Math.min(VIEWPORT.width - x, width);
+  height = Math.min(VIEWPORT.height - y, height);
+
+  return {
+    x: Math.floor(x),
+    y: Math.floor(y),
+    width: Math.max(320, Math.floor(width)),
+    height: Math.max(568, Math.floor(height))
+  };
 }
 
 async function captureRoom(room) {
