@@ -11,30 +11,66 @@ function genId() {
   return "room-" + Math.random().toString(36).slice(2, 10);
 }
 
-// 主色提取 —— 过滤纯黑/纯白/低饱和，优先取中等亮度高饱和颜色
+// RGB → HSL → clamp sat/light → RGB（把提取色处理成环境光色调）
+function processColorForAmbient(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0;
+  const l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+  // 饱和度 18–38%，亮度 28–52%
+  const sc = Math.min(0.38, Math.max(0.18, s));
+  const lc = Math.min(0.52, Math.max(0.28, l));
+  function hue2rgb(p, q, t) {
+    if (t < 0) t += 1; if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  }
+  const q = lc < 0.5 ? lc * (1 + sc) : lc + sc - lc * sc;
+  const p = 2 * lc - q;
+  return [
+    Math.round(hue2rgb(p, q, h + 1 / 3) * 255),
+    Math.round(hue2rgb(p, q, h) * 255),
+    Math.round(hue2rgb(p, q, h - 1 / 3) * 255),
+  ];
+}
+
+// 主色提取 — 过滤极黑/极白/低饱和，优先中等亮度色
 function getDominantColor(img) {
   try {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     const size = 64;
-    canvas.width = size;
-    canvas.height = size;
+    canvas.width = size; canvas.height = size;
     ctx.drawImage(img, 0, 0, size, size);
     const data = ctx.getImageData(0, 0, size, size).data;
     let r = 0, g = 0, b = 0, count = 0;
     for (let i = 0; i < data.length; i += 4) {
       const red = data[i], green = data[i + 1], blue = data[i + 2];
-      const max = Math.max(red, green, blue);
-      const min = Math.min(red, green, blue);
       const brightness = (red + green + blue) / 3;
-      const saturation = max - min;
+      const saturation = Math.max(red, green, blue) - Math.min(red, green, blue);
       if (brightness < 35 || brightness > 235 || saturation < 25) continue;
       r += red; g += green; b += blue; count++;
     }
-    if (!count) return [42, 126, 255];
-    return [Math.round(r / count), Math.round(g / count), Math.round(b / count)];
+    if (!count) return [68, 112, 145];
+    return processColorForAmbient(
+      Math.round(r / count),
+      Math.round(g / count),
+      Math.round(b / count)
+    );
   } catch {
-    return [42, 126, 255];
+    return [68, 112, 145];
   }
 }
 
@@ -44,55 +80,64 @@ const GLOBAL_CSS = `
   *, *::before, *::after { box-sizing: border-box; }
   html, body {
     margin: 0; padding: 0; overflow-x: hidden;
-    background: #03060b;
+    background: #020409;
     font-family: 'Inter', 'Microsoft YaHei', system-ui, sans-serif;
-    color: #e2e8f0;
+    color: #eef6ff;
     -webkit-font-smoothing: antialiased;
   }
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: rgba(99,179,237,0.2); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb { background: rgba(120,165,205,0.18); border-radius: 2px; }
 
   .glass {
-    background: rgba(255,255,255,0.055);
-    backdrop-filter: blur(20px) saturate(1.5);
-    -webkit-backdrop-filter: blur(20px) saturate(1.5);
-    border: 1px solid rgba(255,255,255,0.09);
+    background: rgba(255,255,255,0.045);
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    border: 1px solid rgba(190,220,255,0.10);
   }
-  .btn-glass {
-    background: rgba(255,255,255,0.07);
+  /* 深色玻璃按钮 — 取代所有亮蓝按钮 */
+  .btn-blue {
+    background: rgba(110,150,200,0.14);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255,255,255,0.13);
-    color: #c8d6e5; cursor: pointer;
+    border: 1px solid rgba(180,215,255,0.18);
+    color: rgba(238,246,255,0.88); cursor: pointer;
+    transition: all 0.22s ease; font-family: inherit;
+    box-shadow: 0 0 24px rgba(100,160,220,0.14), inset 0 1px 0 rgba(255,255,255,0.08);
+  }
+  .btn-blue:hover {
+    background: rgba(110,150,200,0.24);
+    border-color: rgba(180,215,255,0.32);
+    color: #eef6ff;
+    box-shadow: 0 0 36px rgba(100,160,220,0.22), inset 0 1px 0 rgba(255,255,255,0.12);
+    transform: translateY(-1px);
+  }
+  .btn-blue:disabled { opacity: 0.38; cursor: not-allowed; transform: none; }
+  .btn-glass {
+    background: rgba(255,255,255,0.055);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(190,220,255,0.10);
+    color: rgba(238,246,255,0.58); cursor: pointer;
     transition: all 0.2s ease; font-family: inherit;
   }
   .btn-glass:hover {
-    background: rgba(255,255,255,0.12);
-    border-color: rgba(99,179,237,0.4); color: #e2e8f0;
+    background: rgba(255,255,255,0.09);
+    border-color: rgba(180,215,255,0.22);
+    color: #eef6ff;
   }
-  .btn-blue {
-    background: linear-gradient(135deg, rgba(56,139,253,0.85), rgba(99,70,229,0.85));
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(99,179,237,0.45);
-    color: #fff; cursor: pointer;
-    transition: all 0.22s ease; font-family: inherit;
-    box-shadow: 0 0 20px rgba(56,139,253,0.3), inset 0 1px 0 rgba(255,255,255,0.15);
-  }
-  .btn-blue:hover {
-    box-shadow: 0 0 36px rgba(56,139,253,0.55), inset 0 1px 0 rgba(255,255,255,0.2);
-    transform: translateY(-1px);
-  }
-  .btn-blue:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
   .inp-glass {
-    background: rgba(255,255,255,0.05);
+    background: rgba(255,255,255,0.04);
     backdrop-filter: blur(12px);
-    border: 1px solid rgba(255,255,255,0.10);
-    color: #e2e8f0; font-family: inherit; outline: none;
+    border: 1px solid rgba(190,220,255,0.10);
+    color: #eef6ff; font-family: inherit; outline: none;
     transition: border-color 0.2s, box-shadow 0.2s;
   }
-  .inp-glass::placeholder { color: rgba(148,163,184,0.4); }
-  .inp-glass:focus { border-color: rgba(99,179,237,0.55); box-shadow: 0 0 0 3px rgba(56,139,253,0.12); }
+  .inp-glass::placeholder { color: rgba(148,163,184,0.35); }
+  .inp-glass:focus {
+    border-color: rgba(120,165,205,0.42);
+    box-shadow: 0 0 0 3px rgba(68,112,145,0.12);
+  }
   .mode-btn {
     cursor: pointer; transition: all 0.2s ease;
     font-family: inherit; border: none; background: transparent;
@@ -101,25 +146,27 @@ const GLOBAL_CSS = `
   .mode-btn::after {
     content: ''; position: absolute;
     bottom: 0; left: 50%; right: 50%; height: 2px;
-    border-radius: 1px; background: #3b82f6;
+    border-radius: 1px; background: rgba(120,165,205,0.70);
     transition: left 0.25s ease, right 0.25s ease, box-shadow 0.25s ease;
   }
-  .mode-btn.active { color: #93c5fd; font-weight: 600; }
-  .mode-btn.active::after { left: 18%; right: 18%; box-shadow: 0 0 10px rgba(59,130,246,0.8); }
-  .mode-btn:not(.active) { color: rgba(148,163,184,0.6); }
-  .mode-btn:hover:not(.active) { color: #cbd5e1; }
+  .mode-btn.active { color: rgba(190,225,255,0.90); font-weight: 600; }
+  .mode-btn.active::after { left: 18%; right: 18%; box-shadow: 0 0 10px rgba(88,145,190,0.55); }
+  .mode-btn:not(.active) { color: rgba(148,163,184,0.5); }
+  .mode-btn:hover:not(.active) { color: rgba(238,246,255,0.75); }
   .tab-pill {
     cursor: pointer; transition: all 0.2s ease;
     white-space: nowrap; font-family: inherit; border: 1px solid transparent;
   }
   .tab-pill.active {
-    background: rgba(56,139,253,0.18); border-color: rgba(99,179,237,0.42);
-    color: #93c5fd; box-shadow: 0 0 18px rgba(56,139,253,0.22);
+    background: rgba(68,112,145,0.18);
+    border-color: rgba(120,165,205,0.30);
+    color: rgba(190,225,255,0.90);
+    box-shadow: 0 0 18px rgba(68,112,145,0.18);
   }
-  .tab-pill:not(.active) { background: rgba(255,255,255,0.055); color: rgba(148,163,184,0.8); }
-  .tab-pill:not(.active):hover { background: rgba(255,255,255,0.09); color: #cbd5e1; }
+  .tab-pill:not(.active) { background: rgba(255,255,255,0.045); color: rgba(148,163,184,0.7); }
+  .tab-pill:not(.active):hover { background: rgba(255,255,255,0.075); color: #eef6ff; }
 
-  /* LIVE card grid — responsive */
+  /* LIVE card grid */
   .room-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -128,7 +175,6 @@ const GLOBAL_CSS = `
   @media (max-width: 1100px) { .room-grid { grid-template-columns: repeat(3, 1fr); gap: 20px; } }
   @media (max-width: 760px)  { .room-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; } }
 
-  /* Card hover lift */
   .live-card-wrap {
     position: relative;
     transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1), z-index 0s;
@@ -138,7 +184,7 @@ const GLOBAL_CSS = `
   .live-card {
     position: relative; border-radius: 28px; overflow: hidden;
     aspect-ratio: 9/16; width: 100%;
-    background: rgba(10,14,24,0.6);
+    background: rgba(7,14,26,0.65);
   }
   .live-card img {
     position: absolute; inset: 0;
@@ -147,37 +193,35 @@ const GLOBAL_CSS = `
   }
   .live-card-wrap:hover .live-card img { transform: scale(1.04); }
 
-  /* Pulse animation for LIVE badge */
   @keyframes livepulse {
     0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(52,211,153,0.6); }
     50%       { opacity: 0.7; box-shadow: 0 0 0 4px rgba(52,211,153,0); }
   }
   .live-dot { animation: livepulse 2.2s ease infinite; }
 
-  /* Drawer */
   .drawer-overlay {
     position: fixed; inset: 0; z-index: 40;
-    background: rgba(2,5,10,0.65);
+    background: rgba(2,4,9,0.72);
     backdrop-filter: blur(6px); animation: fadein 0.2s ease;
   }
   .drawer {
     position: fixed; top: 0; right: 0; bottom: 0; z-index: 50; width: 380px;
-    background: rgba(5,10,20,0.95);
+    background: rgba(5,8,18,0.96);
     backdrop-filter: blur(36px);
-    border-left: 1px solid rgba(255,255,255,0.07);
-    box-shadow: -30px 0 80px rgba(0,0,0,0.75);
+    border-left: 1px solid rgba(190,220,255,0.08);
+    box-shadow: -30px 0 80px rgba(0,0,0,0.85);
     animation: slidein 0.25s ease; overflow-y: auto;
   }
   .status-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
   .status-dot.on    { background: #34d399; box-shadow: 0 0 6px #34d399; }
-  .status-dot.off   { background: #4b5563; }
+  .status-dot.off   { background: #374151; }
   .status-dot.error { background: #f87171; box-shadow: 0 0 6px #f87171; }
 
-  @keyframes fadein  { from { opacity: 0; }              to { opacity: 1; } }
+  @keyframes fadein  { from { opacity: 0; }               to { opacity: 1; } }
   @keyframes slidein { from { transform: translateX(100%); } to { transform: translateX(0); } }
-  @keyframes spin    { from { transform: rotate(0deg); }  to { transform: rotate(360deg); } }
+  @keyframes spin    { from { transform: rotate(0deg); }   to { transform: rotate(360deg); } }
 
-  select.inp-glass option { background: #0d1117; color: #e2e8f0; }
+  select.inp-glass option { background: #07111c; color: #eef6ff; }
 `;
 
 // ─── 动态环境光背景 ──────────────────────────────────────────────────────────
@@ -185,24 +229,24 @@ function AmbientBackground({ color }) {
   const [r, g, b] = color;
   return (
     <>
-      <div style={{ position: "fixed", inset: 0, zIndex: -3, background: "#03060b" }} />
+      <div style={{ position: "fixed", inset: 0, zIndex: -3, background: "#020409" }} />
       {/* Noise 纹理 */}
-      <svg style={{ position: "fixed", inset: 0, zIndex: -2, opacity: 0.045, width: "100%", height: "100%", pointerEvents: "none" }}>
+      <svg style={{ position: "fixed", inset: 0, zIndex: -2, opacity: 0.038, width: "100%", height: "100%", pointerEvents: "none" }}>
         <filter id="noise">
           <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="4" stitchTiles="stitch"/>
           <feColorMatrix type="saturate" values="0"/>
         </filter>
         <rect width="100%" height="100%" filter="url(#noise)"/>
       </svg>
-      {/* 动态环境光层 */}
+      {/* 动态环境光层 — 柔和扩散，边缘自然消失 */}
       <div style={{
         position: "fixed", inset: 0, zIndex: -1, pointerEvents: "none",
         transition: "background 0.55s ease",
         background: `
-          radial-gradient(ellipse 72% 52% at 50% 26%, rgba(${r},${g},${b},0.28) 0%, transparent 65%),
-          radial-gradient(ellipse 55% 42% at 12% 82%, rgba(${r},${g},${b},0.13) 0%, transparent 55%),
-          radial-gradient(ellipse 42% 34% at 88% 74%, rgba(${r},${g},${b},0.09) 0%, transparent 50%),
-          linear-gradient(180deg, #04080f 0%, #060d1b 48%, #030508 100%)
+          radial-gradient(circle at 50% 35%, rgba(${r},${g},${b},0.20), transparent 36%),
+          radial-gradient(circle at 20% 80%, rgba(${r},${g},${b},0.10), transparent 32%),
+          radial-gradient(circle at 80% 70%, rgba(${r},${g},${b},0.08), transparent 34%),
+          linear-gradient(180deg, #05070b 0%, #07101a 45%, #020409 100%)
         `,
       }} />
     </>
@@ -211,7 +255,7 @@ function AmbientBackground({ color }) {
 
 // ─── 主视觉卡片（9:16）────────────────────────────────────────────────────────
 function LiveCard({ id, name, imgSrc, enabled, lastRunAt, lastError, onColorReady, onHover, onLeave }) {
-  const [clr, setClr] = useState([42, 126, 255]);
+  const [clr, setClr] = useState([68, 112, 145]);
   const [r, g, b] = clr;
 
   function onImgLoad(e) {
@@ -226,24 +270,23 @@ function LiveCard({ id, name, imgSrc, enabled, lastRunAt, lastError, onColorRead
       onMouseLeave={onLeave}
       style={{ paddingBottom: 52 }}
     >
-      {/* 卡片背后环境光晕 */}
+      {/* 卡片背后环境光晕 — 大范围低透明度 */}
       <div style={{
         position: "absolute", inset: "-24px -24px 60px",
-        background: `radial-gradient(circle at 50% 58%, rgba(${r},${g},${b},0.38), transparent 65%)`,
-        filter: "blur(38px)", zIndex: 0, pointerEvents: "none",
+        background: `radial-gradient(circle at 50% 58%, rgba(${r},${g},${b},0.22), transparent 68%)`,
+        filter: "blur(48px)", zIndex: 0, pointerEvents: "none",
         transition: "background 0.5s ease",
       }}/>
 
       {/* 卡片本体 */}
       <div className="live-card" style={{
         position: "relative", zIndex: 1,
-        border: `1px solid rgba(${r},${g},${b},0.52)`,
+        border: `1px solid rgba(180,215,255,0.16)`,
         boxShadow: `
-          0 32px 90px rgba(0,0,0,0.65),
-          0 0 55px rgba(${r},${g},${b},0.38),
-          0 0 130px rgba(${r},${g},${b},0.16),
-          inset 0 0 32px rgba(255,255,255,0.04),
-          inset 0 1px 0 rgba(255,255,255,0.14)
+          0 28px 90px rgba(0,0,0,0.65),
+          0 0 70px rgba(${r},${g},${b},0.22),
+          inset 0 0 30px rgba(255,255,255,0.05),
+          inset 0 1px 0 rgba(255,255,255,0.10)
         `,
         transition: "border-color 0.5s ease, box-shadow 0.5s ease",
       }}>
@@ -253,12 +296,12 @@ function LiveCard({ id, name, imgSrc, enabled, lastRunAt, lastError, onColorRead
         ) : (
           <div style={{
             position: "absolute", inset: 0,
-            background: `linear-gradient(160deg, rgba(${r},${g},${b},0.10), rgba(0,0,0,0.5))`,
+            background: `linear-gradient(160deg, rgba(${r},${g},${b},0.08), rgba(0,0,0,0.5))`,
             display: "flex", flexDirection: "column",
             alignItems: "center", justifyContent: "center", gap: 14,
           }}>
-            <span style={{ fontSize: 38, opacity: 0.22 }}>📱</span>
-            <span style={{ fontSize: 12, color: "rgba(148,163,184,0.4)", textAlign: "center", padding: "0 20px" }}>
+            <span style={{ fontSize: 38, opacity: 0.16 }}>📱</span>
+            <span style={{ fontSize: 12, color: "rgba(148,163,184,0.35)", textAlign: "center", padding: "0 20px" }}>
               暂无截图
             </span>
           </div>
@@ -267,13 +310,13 @@ function LiveCard({ id, name, imgSrc, enabled, lastRunAt, lastError, onColorRead
         {/* 顶部暗遮罩 */}
         <div style={{
           position: "absolute", top: 0, left: 0, right: 0, height: "38%",
-          background: "linear-gradient(to bottom, rgba(3,5,14,0.6), transparent)",
+          background: "linear-gradient(to bottom, rgba(2,4,9,0.65), transparent)",
           pointerEvents: "none", zIndex: 2,
         }}/>
         {/* 底部渐变遮罩 */}
         <div style={{
           position: "absolute", bottom: 0, left: 0, right: 0, height: "50%",
-          background: "linear-gradient(to top, rgba(3,5,14,0.97) 0%, rgba(3,5,14,0.72) 46%, transparent)",
+          background: "linear-gradient(to top, rgba(2,4,9,0.97) 0%, rgba(5,7,16,0.72) 46%, transparent)",
           pointerEvents: "none", zIndex: 2,
         }}/>
 
@@ -282,12 +325,11 @@ function LiveCard({ id, name, imgSrc, enabled, lastRunAt, lastError, onColorRead
           position: "absolute", top: 13, left: 13, right: 13,
           display: "flex", justifyContent: "space-between", alignItems: "flex-start", zIndex: 3,
         }}>
-          {/* LIVE */}
           <div style={{
             display: "flex", alignItems: "center", gap: 5,
             padding: "4px 10px", borderRadius: 8,
-            background: "rgba(0,0,0,0.5)", backdropFilter: "blur(10px)",
-            border: "1px solid rgba(255,255,255,0.09)",
+            background: "rgba(0,0,0,0.45)", backdropFilter: "blur(10px)",
+            border: "1px solid rgba(255,255,255,0.07)",
           }}>
             <span className="live-dot" style={{
               width: 6, height: 6, borderRadius: "50%",
@@ -295,17 +337,16 @@ function LiveCard({ id, name, imgSrc, enabled, lastRunAt, lastError, onColorRead
             }}/>
             <span style={{ fontSize: 10, fontWeight: 700, color: "#34d399", letterSpacing: 1 }}>LIVE</span>
           </div>
-          {/* 启用状态 */}
           <div style={{
             padding: "3px 10px", borderRadius: 7, backdropFilter: "blur(10px)",
             background: lastError
-              ? "rgba(239,68,68,0.18)"
-              : enabled ? "rgba(52,211,153,0.12)" : "rgba(71,85,105,0.18)",
+              ? "rgba(239,68,68,0.14)"
+              : enabled ? "rgba(52,211,153,0.10)" : "rgba(55,65,81,0.18)",
             border: `1px solid ${lastError
-              ? "rgba(239,68,68,0.32)"
-              : enabled ? "rgba(52,211,153,0.28)" : "rgba(71,85,105,0.25)"}`,
+              ? "rgba(239,68,68,0.28)"
+              : enabled ? "rgba(52,211,153,0.24)" : "rgba(55,65,81,0.28)"}`,
             fontSize: 11, fontWeight: 600,
-            color: lastError ? "#f87171" : enabled ? "#34d399" : "#64748b",
+            color: lastError ? "#f87171" : enabled ? "#34d399" : "#4b5563",
           }}>
             {lastError ? "失败" : enabled ? "启用" : "关闭"}
           </div>
@@ -314,16 +355,16 @@ function LiveCard({ id, name, imgSrc, enabled, lastRunAt, lastError, onColorRead
         {/* 底部信息 */}
         <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "0 16px 18px", zIndex: 3 }}>
           <div style={{
-            fontSize: 15, fontWeight: 700, color: "#f1f5f9", marginBottom: 7,
-            lineHeight: 1.3, textShadow: "0 1px 10px rgba(0,0,0,0.9)",
+            fontSize: 15, fontWeight: 700, color: "#eef6ff", marginBottom: 7,
+            lineHeight: 1.3, textShadow: "0 1px 12px rgba(0,0,0,0.95)",
           }}>
             {name}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
             <span className="status-dot on" style={{ width: 5, height: 5 }}/>
-            <span style={{ fontSize: 11, color: "rgba(148,163,184,0.8)" }}>已抓取</span>
+            <span style={{ fontSize: 11, color: "rgba(238,246,255,0.55)" }}>已抓取</span>
             {lastRunAt && (
-              <span style={{ fontSize: 11, color: "rgba(148,163,184,0.45)", marginLeft: "auto" }}>
+              <span style={{ fontSize: 11, color: "rgba(148,163,184,0.38)", marginLeft: "auto" }}>
                 {fmtTime(lastRunAt)}
               </span>
             )}
@@ -333,12 +374,12 @@ function LiveCard({ id, name, imgSrc, enabled, lastRunAt, lastError, onColorRead
         {/* 顶部高光线 */}
         <div style={{
           position: "absolute", top: 0, left: 0, right: 0, height: 1, zIndex: 4,
-          background: "linear-gradient(to right, transparent 5%, rgba(255,255,255,0.28) 40%, rgba(255,255,255,0.18) 60%, transparent 95%)",
+          background: "linear-gradient(to right, transparent 5%, rgba(255,255,255,0.20) 40%, rgba(255,255,255,0.12) 60%, transparent 95%)",
         }}/>
         {/* 左侧高光线 */}
         <div style={{
           position: "absolute", top: "5%", left: 0, bottom: "5%", width: 1, zIndex: 4,
-          background: "linear-gradient(to bottom, transparent, rgba(255,255,255,0.12) 40%, rgba(255,255,255,0.06) 60%, transparent)",
+          background: "linear-gradient(to bottom, transparent, rgba(255,255,255,0.08) 40%, rgba(255,255,255,0.04) 60%, transparent)",
         }}/>
       </div>
 
@@ -346,15 +387,15 @@ function LiveCard({ id, name, imgSrc, enabled, lastRunAt, lastError, onColorRead
       <div style={{
         position: "absolute", bottom: 0,
         left: "10%", right: "10%", height: 52,
-        background: `radial-gradient(ellipse at center, rgba(${r},${g},${b},0.44), transparent 68%)`,
-        filter: "blur(20px)", opacity: 0.7, pointerEvents: "none",
+        background: `radial-gradient(ellipse at center, rgba(${r},${g},${b},0.30), transparent 68%)`,
+        filter: "blur(22px)", opacity: 0.6, pointerEvents: "none",
         transition: "background 0.5s ease",
       }}/>
     </div>
   );
 }
 
-// ─── 空状态占位（4张空卡片）─────────────────────────────────────────────────────
+// ─── 空状态占位 ───────────────────────────────────────────────────────────────
 function EmptyDisplayState({ onAddRoom }) {
   return (
     <div style={{ padding: "32px 32px 60px", maxWidth: 1400, margin: "0 auto" }}>
@@ -363,18 +404,18 @@ function EmptyDisplayState({ onAddRoom }) {
           <div key={i} style={{ paddingBottom: 48, position: "relative" }}>
             <div style={{
               aspectRatio: "9/16", borderRadius: 28,
-              background: "rgba(255,255,255,0.025)",
+              background: "rgba(255,255,255,0.018)",
               backdropFilter: "blur(20px)",
-              border: "1px solid rgba(56,139,253,0.16)",
-              boxShadow: "0 0 40px rgba(56,139,253,0.07), inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 30px rgba(56,139,253,0.04)",
+              border: "1px solid rgba(180,215,255,0.10)",
+              boxShadow: "0 0 40px rgba(68,112,145,0.06), inset 0 1px 0 rgba(255,255,255,0.05)",
               display: "flex", flexDirection: "column",
               alignItems: "center", justifyContent: "center", gap: 14,
             }}>
               {i === 1 ? (
                 <>
-                  <div style={{ fontSize: 34, opacity: 0.18 }}>📺</div>
+                  <div style={{ fontSize: 34, opacity: 0.14 }}>📺</div>
                   <div style={{
-                    fontSize: 13, color: "rgba(148,163,184,0.38)",
+                    fontSize: 13, color: "rgba(148,163,184,0.32)",
                     textAlign: "center", padding: "0 22px", lineHeight: 1.7,
                   }}>
                     暂无直播间<br/>请先新增直播间
@@ -385,13 +426,12 @@ function EmptyDisplayState({ onAddRoom }) {
                   </button>
                 </>
               ) : (
-                <div style={{ fontSize: 26, opacity: 0.07 }}>📱</div>
+                <div style={{ fontSize: 26, opacity: 0.055 }}>📱</div>
               )}
             </div>
-            {/* 底部空状态反光 */}
             <div style={{
               position: "absolute", bottom: 0, left: "10%", right: "10%", height: 48,
-              background: "radial-gradient(ellipse at center, rgba(42,126,255,0.18), transparent 68%)",
+              background: "radial-gradient(ellipse at center, rgba(68,112,145,0.14), transparent 68%)",
               filter: "blur(18px)", opacity: 0.5, pointerEvents: "none",
             }}/>
           </div>
@@ -403,7 +443,7 @@ function EmptyDisplayState({ onAddRoom }) {
 
 // ─── 最近截图小卡片 ──────────────────────────────────────────────────────────
 function MiniCard({ shot }) {
-  const [clr, setClr] = useState([42, 126, 255]);
+  const [clr, setClr] = useState([68, 112, 145]);
   const [r, g, b] = clr;
   const [hover, setHover] = useState(false);
   return (
@@ -417,9 +457,9 @@ function MiniCard({ shot }) {
     >
       <div style={{
         borderRadius: 14, overflow: "hidden", aspectRatio: "9/16",
-        background: "#08101a",
-        border: `1px solid rgba(${r},${g},${b},0.28)`,
-        boxShadow: `0 8px 26px rgba(0,0,0,0.55), 0 0 18px rgba(${r},${g},${b},0.22)`,
+        background: "#07111c",
+        border: `1px solid rgba(${r},${g},${b},0.22)`,
+        boxShadow: `0 8px 26px rgba(0,0,0,0.65), 0 0 18px rgba(${r},${g},${b},0.16)`,
         marginBottom: 7, position: "relative",
         transition: "border-color 0.3s, box-shadow 0.3s",
       }}>
@@ -432,13 +472,13 @@ function MiniCard({ shot }) {
         />
         <div style={{
           position: "absolute", bottom: 0, left: 0, right: 0, height: "45%",
-          background: "linear-gradient(to top, rgba(3,5,14,0.92), transparent)",
+          background: "linear-gradient(to top, rgba(2,4,9,0.92), transparent)",
         }}/>
       </div>
-      <div style={{ fontSize: 11, color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.4 }}>
+      <div style={{ fontSize: 11, color: "rgba(238,246,255,0.55)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.4 }}>
         {shot.keyword || shot.roomName || "截图"}
       </div>
-      <div style={{ fontSize: 10, color: "rgba(100,116,139,0.65)", marginTop: 2 }}>
+      <div style={{ fontSize: 10, color: "rgba(148,163,184,0.45)", marginTop: 2 }}>
         {fmtTime(shot.capturedAt)}
       </div>
     </div>
@@ -447,7 +487,7 @@ function MiniCard({ shot }) {
 
 // ─── 展示模式主体 ─────────────────────────────────────────────────────────────
 function DisplayMode({ rooms, shots, onCapture, onAddRoom }) {
-  const DEFAULT_COLOR = [42, 126, 255];
+  const DEFAULT_COLOR = [68, 112, 145];
   const [ambientColor, setAmbientColor] = useState(DEFAULT_COLOR);
   const [colorMap, setColorMap] = useState({});
   const [activeTab, setActiveTab] = useState("全部");
@@ -455,19 +495,16 @@ function DisplayMode({ rooms, shots, onCapture, onAddRoom }) {
   const [keyword, setKeyword] = useState("");
   const [capturing, setCapturing] = useState(false);
 
-  // 分类来源：shot 关键词
   const catSet = new Set();
   shots.forEach(s => { if (s.keyword || s.roomName) catSet.add(s.keyword || s.roomName); });
   const categories = ["全部", ...Array.from(catSet)];
 
-  // 过滤后展示的直播间
   const filteredRooms = activeTab === "全部"
     ? rooms
     : rooms.filter(r =>
         shots.some(s => s.roomId === r.id && (s.keyword === activeTab || s.roomName === activeTab))
       );
 
-  // 当某张卡片颜色提取完成
   function handleColorReady(id, color) {
     setColorMap(prev => {
       const next = { ...prev, [id]: color };
@@ -548,7 +585,6 @@ function DisplayMode({ rooms, shots, onCapture, onAddRoom }) {
           <EmptyDisplayState onAddRoom={onAddRoom} />
         ) : (
           <div style={{ maxWidth: 1400, margin: "0 auto", padding: "30px 32px 0" }}>
-            {/* 直播间卡片墙 */}
             {filteredRooms.length > 0 ? (
               <div className="room-grid">
                 {filteredRooms.map(room => (
@@ -569,18 +605,17 @@ function DisplayMode({ rooms, shots, onCapture, onAddRoom }) {
             ) : (
               <div style={{
                 textAlign: "center", padding: "60px 0",
-                color: "rgba(148,163,184,0.4)", fontSize: 14,
+                color: "rgba(148,163,184,0.35)", fontSize: 14,
               }}>
                 该分类下暂无直播间截图
               </div>
             )}
 
-            {/* 最近截图横向滚动 */}
             {hasShots && (
               <div style={{ marginTop: 52 }}>
                 <div style={{
                   fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase",
-                  color: "rgba(148,163,184,0.4)", marginBottom: 16, paddingLeft: 2,
+                  color: "rgba(148,163,184,0.35)", marginBottom: 16, paddingLeft: 2,
                 }}>
                   最近截图 · {shots.length} 张
                 </div>
@@ -605,13 +640,13 @@ function DisplayMode({ rooms, shots, onCapture, onAddRoom }) {
           <div className="drawer-overlay" onClick={() => setDrawerOpen(false)} />
           <div className="drawer" style={{ padding: 28 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-              <span style={{ fontSize: 16, fontWeight: 600, color: "#e2e8f0" }}>📸 快速抓取</span>
+              <span style={{ fontSize: 16, fontWeight: 600, color: "#eef6ff" }}>📸 快速抓取</span>
               <button className="btn-glass" onClick={() => setDrawerOpen(false)}
                 style={{ width: 32, height: 32, borderRadius: 8, fontSize: 20, padding: 0, display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>
                 ×
               </button>
             </div>
-            <div style={{ marginBottom: 10, fontSize: 12, color: "rgba(148,163,184,0.55)" }}>
+            <div style={{ marginBottom: 10, fontSize: 12, color: "rgba(148,163,184,0.48)" }}>
               关键词搜索抓取
             </div>
             <input className="inp-glass" value={keyword} onChange={e => setKeyword(e.target.value)}
@@ -624,19 +659,19 @@ function DisplayMode({ rooms, shots, onCapture, onAddRoom }) {
             </button>
 
             {rooms.length > 0 && (
-              <div style={{ marginTop: 28, borderTop: "1px solid rgba(255,255,255,0.07)", paddingTop: 20 }}>
-                <div style={{ fontSize: 12, color: "rgba(148,163,184,0.5)", marginBottom: 14 }}>
+              <div style={{ marginTop: 28, borderTop: "1px solid rgba(190,220,255,0.06)", paddingTop: 20 }}>
+                <div style={{ fontSize: 12, color: "rgba(148,163,184,0.45)", marginBottom: 14 }}>
                   指定直播间抓取
                 </div>
                 {rooms.map(r => (
                   <div key={r.id} style={{
                     display: "flex", alignItems: "center", justifyContent: "space-between",
                     padding: "11px 14px", borderRadius: 10, marginBottom: 8,
-                    background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)",
+                    background: "rgba(255,255,255,0.032)", border: "1px solid rgba(190,220,255,0.07)",
                   }}>
                     <div>
-                      <div style={{ fontSize: 13, color: "#e2e8f0", fontWeight: 500 }}>{r.name}</div>
-                      <div style={{ fontSize: 11, color: "rgba(148,163,184,0.5)", marginTop: 2 }}>
+                      <div style={{ fontSize: 13, color: "#eef6ff", fontWeight: 500 }}>{r.name}</div>
+                      <div style={{ fontSize: 11, color: "rgba(148,163,184,0.45)", marginTop: 2 }}>
                         最近 {fmtTime(r.lastRunAt)}
                       </div>
                     </div>
@@ -688,7 +723,7 @@ function ManageMode({ rooms, onSave }) {
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "28px 24px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: "#e2e8f0" }}>直播间管理</h2>
+        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: "#eef6ff" }}>直播间管理</h2>
         <div style={{ display: "flex", gap: 10 }}>
           <button className="btn-glass" onClick={() => setAddOpen(true)}
             style={{ padding: "8px 16px", borderRadius: 9, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
@@ -702,7 +737,7 @@ function ManageMode({ rooms, onSave }) {
       </div>
       {addOpen && (
         <div className="glass" style={{ borderRadius: 14, padding: 22, marginBottom: 20 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "#93c5fd", marginBottom: 16 }}>新增直播间</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "rgba(190,225,255,0.80)", marginBottom: 16 }}>新增直播间</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <FormField label="名称">
               <input className="inp-glass" value={newRoom.name} onChange={e => setNewRoom(p => ({ ...p, name: e.target.value }))}
@@ -737,7 +772,7 @@ function ManageMode({ rooms, onSave }) {
       )}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {list.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "50px 0", color: "rgba(148,163,184,0.4)", fontSize: 14 }}>
+          <div style={{ textAlign: "center", padding: "50px 0", color: "rgba(148,163,184,0.35)", fontSize: 14 }}>
             暂无直播间，点击右上角"新增"添加
           </div>
         ) : list.map(room => (
@@ -758,20 +793,20 @@ function RoomEditCard({ room, onUpdate, onRemove }) {
         onClick={() => setExpanded(p => !p)}>
         <span className={`status-dot ${room.enabled ? "on" : "off"}`} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "#e2e8f0", marginBottom: 2 }}>{room.name}</div>
-          <div style={{ fontSize: 12, color: "rgba(148,163,184,0.55)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "#eef6ff", marginBottom: 2 }}>{room.name}</div>
+          <div style={{ fontSize: 12, color: "rgba(148,163,184,0.48)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {room.url}
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-          <span style={{ fontSize: 12, color: "rgba(148,163,184,0.55)" }}>📅 {room.publishTime}</span>
+          <span style={{ fontSize: 12, color: "rgba(148,163,184,0.48)" }}>📅 {room.publishTime}</span>
           <ToggleSwitch checked={room.enabled} onChange={v => onUpdate("enabled", v)} />
-          <span style={{ fontSize: 18, color: "rgba(148,163,184,0.4)", transition: "transform 0.2s",
+          <span style={{ fontSize: 18, color: "rgba(148,163,184,0.38)", transition: "transform 0.2s",
             transform: expanded ? "rotate(90deg)" : "rotate(0deg)", display: "inline-block" }}>›</span>
         </div>
       </div>
       {expanded && (
-        <div style={{ padding: "0 18px 18px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+        <div style={{ padding: "0 18px 18px", borderTop: "1px solid rgba(190,220,255,0.06)" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 14 }}>
             <FormField label="名称">
               <input className="inp-glass" value={room.name} onChange={e => onUpdate("name", e.target.value)}
@@ -792,7 +827,7 @@ function RoomEditCard({ room, onUpdate, onRemove }) {
           </FormField>
           {room.lastError && (
             <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 9,
-              background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.18)" }}>
+              background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.16)" }}>
               <div style={{ fontSize: 11, color: "#fca5a5", lineHeight: 1.6 }}>
                 ⚠️ {room.lastError.slice(0, 150)}...
               </div>
@@ -801,7 +836,7 @@ function RoomEditCard({ room, onUpdate, onRemove }) {
           <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
             <button onClick={onRemove}
               style={{ padding: "6px 14px", borderRadius: 8, fontSize: 12, cursor: "pointer",
-                background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.22)", color: "#f87171" }}>
+                background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.20)", color: "#f87171" }}>
               删除此直播间
             </button>
           </div>
@@ -819,16 +854,17 @@ function HistoryMode({ commands, shots, rooms }) {
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: "28px 24px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24 }}>
-        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: "#e2e8f0" }}>历史记录</h2>
+        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: "#eef6ff" }}>历史记录</h2>
         <input className="inp-glass" value={filterKw} onChange={e => setFilterKw(e.target.value)}
           placeholder="筛选关键词..."
           style={{ padding: "7px 14px", borderRadius: 9, fontSize: 13, width: 200 }} />
       </div>
       <div style={{ position: "relative" }}>
-        <div style={{ position: "absolute", left: 17, top: 0, bottom: 0, width: 1, background: "rgba(56,139,253,0.12)" }} />
+        {/* 时间线竖线 */}
+        <div style={{ position: "absolute", left: 17, top: 0, bottom: 0, width: 1, background: "rgba(68,112,145,0.18)" }} />
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {filtered.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "50px 0", color: "rgba(148,163,184,0.4)", fontSize: 14 }}>
+            <div style={{ textAlign: "center", padding: "50px 0", color: "rgba(148,163,184,0.35)", fontSize: 14 }}>
               暂无记录
             </div>
           ) : filtered.map(cmd => (
@@ -838,20 +874,20 @@ function HistoryMode({ commands, shots, rooms }) {
       </div>
       {shots.length > 0 && (
         <div style={{ marginTop: 40 }}>
-          <div style={{ fontSize: 11, color: "rgba(148,163,184,0.45)", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: "rgba(148,163,184,0.38)", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 14 }}>
             截图库 · {shots.length} 张
           </div>
           <div style={{ columns: "160px", columnGap: 12 }}>
             {shots.map(shot => (
               <div key={shot.id} style={{ breakInside: "avoid", marginBottom: 12 }}>
-                <div style={{ borderRadius: 10, overflow: "hidden", aspectRatio: "9/16", background: "#0a0e17", position: "relative" }}>
+                <div style={{ borderRadius: 10, overflow: "hidden", aspectRatio: "9/16", background: "#07101a", position: "relative" }}>
                   <img src={shot.imageUrl} alt={shot.keyword}
                     style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "45%",
-                    background: "linear-gradient(to top, rgba(3,5,14,0.9), transparent)" }}/>
+                    background: "linear-gradient(to top, rgba(2,4,9,0.92), transparent)" }}/>
                   <div style={{ position: "absolute", bottom: 8, left: 9, right: 9 }}>
-                    <div style={{ fontSize: 11, color: "#e2e8f0", fontWeight: 500 }}>{shot.keyword || shot.roomName}</div>
-                    <div style={{ fontSize: 10, color: "rgba(148,163,184,0.5)", marginTop: 2 }}>{fmtTime(shot.capturedAt)}</div>
+                    <div style={{ fontSize: 11, color: "#eef6ff", fontWeight: 500 }}>{shot.keyword || shot.roomName}</div>
+                    <div style={{ fontSize: 10, color: "rgba(148,163,184,0.45)", marginTop: 2 }}>{fmtTime(shot.capturedAt)}</div>
                   </div>
                 </div>
               </div>
@@ -875,8 +911,8 @@ function CommandRow({ cmd, rooms }) {
       <div style={{
         width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
         display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1,
-        background: isOk ? "rgba(52,211,153,0.12)" : isFail ? "rgba(239,68,68,0.12)" : "rgba(56,139,253,0.12)",
-        border: `1px solid ${isOk ? "rgba(52,211,153,0.28)" : isFail ? "rgba(239,68,68,0.28)" : "rgba(56,139,253,0.28)"}`,
+        background: isOk ? "rgba(52,211,153,0.10)" : isFail ? "rgba(239,68,68,0.10)" : "rgba(68,112,145,0.12)",
+        border: `1px solid ${isOk ? "rgba(52,211,153,0.24)" : isFail ? "rgba(239,68,68,0.24)" : "rgba(68,112,145,0.28)"}`,
         fontSize: 14,
       }}>
         {isOk ? "✓" : isFail ? "✗" : "⏳"}
@@ -885,32 +921,32 @@ function CommandRow({ cmd, rooms }) {
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", cursor: isFail ? "pointer" : "default" }}
           onClick={() => isFail && setExp(p => !p)}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 500, color: "#e2e8f0" }}>{label}</div>
-            <div style={{ fontSize: 11, color: "rgba(148,163,184,0.5)", marginTop: 3 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, color: "#eef6ff" }}>{label}</div>
+            <div style={{ fontSize: 11, color: "rgba(148,163,184,0.45)", marginTop: 3 }}>
               {new Date(cmd.createdAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {isOk && cmd.resultCount != null && (
-              <span style={{ fontSize: 12, color: "#34d399", background: "rgba(52,211,153,0.1)",
-                padding: "2px 8px", borderRadius: 6, border: "1px solid rgba(52,211,153,0.2)" }}>
+              <span style={{ fontSize: 12, color: "#34d399", background: "rgba(52,211,153,0.08)",
+                padding: "2px 8px", borderRadius: 6, border: "1px solid rgba(52,211,153,0.18)" }}>
                 {cmd.resultCount} 张
               </span>
             )}
             <span style={{
               fontSize: 11, padding: "3px 9px", borderRadius: 6, fontWeight: 500,
-              color: isOk ? "#34d399" : isFail ? "#f87171" : "#60a5fa",
-              background: isOk ? "rgba(52,211,153,0.1)" : isFail ? "rgba(239,68,68,0.1)" : "rgba(96,165,250,0.1)",
-              border: `1px solid ${isOk ? "rgba(52,211,153,0.2)" : isFail ? "rgba(239,68,68,0.2)" : "rgba(96,165,250,0.2)"}`,
+              color: isOk ? "#34d399" : isFail ? "#f87171" : "rgba(190,225,255,0.70)",
+              background: isOk ? "rgba(52,211,153,0.08)" : isFail ? "rgba(239,68,68,0.08)" : "rgba(68,112,145,0.12)",
+              border: `1px solid ${isOk ? "rgba(52,211,153,0.18)" : isFail ? "rgba(239,68,68,0.18)" : "rgba(68,112,145,0.28)"}`,
             }}>
               {isOk ? "完成" : isFail ? "失败" : "进行中"}
             </span>
           </div>
         </div>
         {isFail && exp && (
-          <div style={{ padding: "0 16px 14px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+          <div style={{ padding: "0 16px 14px", borderTop: "1px solid rgba(190,220,255,0.05)" }}>
             <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 8,
-              background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.14)",
+              background: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,68,0.14)",
               fontSize: 11, color: "#fca5a5", fontFamily: "monospace",
               lineHeight: 1.7, whiteSpace: "pre-wrap", wordBreak: "break-all",
               maxHeight: 120, overflowY: "auto" }}>
@@ -927,7 +963,7 @@ function CommandRow({ cmd, rooms }) {
 function FormField({ label, children, style }) {
   return (
     <div style={style}>
-      <div style={{ fontSize: 11, color: "rgba(148,163,184,0.55)", marginBottom: 6, letterSpacing: 0.4 }}>{label}</div>
+      <div style={{ fontSize: 11, color: "rgba(148,163,184,0.48)", marginBottom: 6, letterSpacing: 0.4 }}>{label}</div>
       {children}
     </div>
   );
@@ -937,15 +973,15 @@ function ToggleSwitch({ checked, onChange }) {
     <div onClick={e => { e.stopPropagation(); onChange(!checked); }}
       style={{
         width: 38, height: 22, borderRadius: 11, cursor: "pointer", flexShrink: 0,
-        background: checked ? "rgba(56,139,253,0.75)" : "rgba(255,255,255,0.10)",
-        border: `1px solid ${checked ? "rgba(99,179,237,0.5)" : "rgba(255,255,255,0.09)"}`,
+        background: checked ? "rgba(68,112,145,0.72)" : "rgba(255,255,255,0.08)",
+        border: `1px solid ${checked ? "rgba(120,165,205,0.42)" : "rgba(190,220,255,0.08)"}`,
         position: "relative", transition: "all 0.2s ease",
-        boxShadow: checked ? "0 0 12px rgba(56,139,253,0.35)" : "none",
+        boxShadow: checked ? "0 0 14px rgba(68,112,145,0.32)" : "none",
       }}>
       <div style={{
         width: 16, height: 16, borderRadius: "50%", background: "#fff",
         position: "absolute", top: 2, transition: "left 0.2s ease",
-        left: checked ? 18 : 2, boxShadow: "0 1px 4px rgba(0,0,0,0.35)",
+        left: checked ? 18 : 2, boxShadow: "0 1px 4px rgba(0,0,0,0.45)",
       }} />
     </div>
   );
@@ -960,27 +996,27 @@ function Header({ mode, setMode, stats, onRefresh, onAddRoom }) {
   return (
     <header style={{
       position: "sticky", top: 0, zIndex: 30,
-      background: "rgba(3,6,11,0.82)",
+      background: "rgba(2,4,9,0.88)",
       backdropFilter: "blur(24px)",
-      borderBottom: "1px solid rgba(255,255,255,0.07)",
+      borderBottom: "1px solid rgba(190,220,255,0.07)",
     }}>
       <div style={{ maxWidth: 1400, margin: "0 auto", padding: "0 32px" }}>
-        {/* 第一行 */}
         <div style={{ display: "flex", alignItems: "center", gap: 18, height: 60 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
             <div style={{
               width: 30, height: 30, borderRadius: 9,
-              background: "linear-gradient(135deg,#3b82f6,#6366f1)",
+              background: "linear-gradient(135deg, rgba(68,112,145,0.80), rgba(40,72,105,0.90))",
               display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: "0 0 18px rgba(99,102,241,0.55)", fontSize: 15,
+              boxShadow: "0 0 18px rgba(68,112,145,0.35)", fontSize: 15,
+              border: "1px solid rgba(180,215,255,0.16)",
             }}>📡</div>
-            <span style={{ fontSize: 15, fontWeight: 600, color: "#e8edf5", letterSpacing: -0.3 }}>
+            <span style={{ fontSize: 15, fontWeight: 600, color: "#eef6ff", letterSpacing: -0.3 }}>
               直播截图素材库
             </span>
           </div>
           <div style={{ display: "flex", gap: 7 }}>
-            <StatPill label="今日截图" value={stats.shots} color="#60a5fa" />
-            <StatPill label="直播间" value={stats.rooms} color="#a78bfa" />
+            <StatPill label="今日截图" value={stats.shots} color="#78a5cd" />
+            <StatPill label="直播间" value={stats.rooms} color="#9b8ec4" />
             {stats.failed > 0 && <StatPill label="失败" value={stats.failed} color="#f87171" />}
           </div>
           <div style={{ flex: 1 }} />
@@ -994,7 +1030,7 @@ function Header({ mode, setMode, stats, onRefresh, onAddRoom }) {
           </button>
         </div>
         {/* 模式切换 */}
-        <div style={{ display: "flex", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+        <div style={{ display: "flex", borderTop: "1px solid rgba(190,220,255,0.05)" }}>
           {[
             { key: "display", label: "展示模式" },
             { key: "manage",  label: "管理模式" },
@@ -1018,10 +1054,10 @@ function StatPill({ label, value, color }) {
       display: "flex", alignItems: "center", gap: 6,
       padding: "4px 12px", borderRadius: 20,
       background: `rgba(${rgb},0.08)`,
-      border: `1px solid rgba(${rgb},0.2)`,
+      border: `1px solid rgba(${rgb},0.18)`,
     }}>
       <span style={{ fontSize: 15, fontWeight: 700, color, lineHeight: 1 }}>{value}</span>
-      <span style={{ fontSize: 11, color: "rgba(148,163,184,0.75)" }}>{label}</span>
+      <span style={{ fontSize: 11, color: "rgba(238,246,255,0.50)" }}>{label}</span>
     </div>
   );
 }
@@ -1074,7 +1110,7 @@ export default function Page() {
         <Header mode={mode} setMode={setMode} stats={stats} onRefresh={load} onAddRoom={handleAddRoom} />
 
         {loading ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", color: "rgba(148,163,184,0.4)", fontSize: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", color: "rgba(148,163,184,0.35)", fontSize: 14 }}>
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 28, marginBottom: 14, display: "inline-block", animation: "spin 1.5s linear infinite" }}>⏳</div>
               <div>加载中...</div>
