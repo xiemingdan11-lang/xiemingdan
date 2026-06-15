@@ -494,6 +494,7 @@ function DisplayMode({ rooms, shots, onCapture, onAddRoom }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [keyword, setKeyword] = useState("");
   const [capturing, setCapturing] = useState(false);
+  const [captureMsg, setCaptureMsg] = useState("");
 
   const catSet = new Set();
   shots.forEach(s => { if (s.keyword || s.roomName) catSet.add(s.keyword || s.roomName); });
@@ -527,28 +528,46 @@ function DisplayMode({ rooms, shots, onCapture, onAddRoom }) {
   async function handleCapture() {
     if (!keyword.trim()) return;
     setCapturing(true);
+    setCaptureMsg("");
     try {
-      await fetch("/api/live/agent/commands", {
+      const res = await fetch("/api/live/agent/commands", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "search-capture", keyword: keyword.trim(), limit: 8 }),
       });
+      if (res.ok) {
+        setCaptureMsg("✅ 指令已发送，等待共享电脑抓取...");
+        onCapture();
+        setTimeout(() => { setDrawerOpen(false); setCaptureMsg(""); setKeyword(""); }, 2500);
+      } else {
+        const j = await res.json().catch(() => ({}));
+        setCaptureMsg("❌ " + (j.error || "发送失败，请重试"));
+      }
+    } catch {
+      setCaptureMsg("❌ 网络错误，请检查连接");
     } finally {
       setCapturing(false);
-      setDrawerOpen(false);
-      onCapture();
     }
   }
 
   async function handleCaptureRoom(roomId) {
     try {
-      await fetch("/api/live/agent/commands", {
+      const res = await fetch("/api/live/agent/commands", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "capture-room", roomId }),
       });
-      onCapture();
-    } catch {}
+      if (res.ok) {
+        setCaptureMsg("✅ 指令已发送");
+        onCapture();
+        setTimeout(() => { setDrawerOpen(false); setCaptureMsg(""); }, 2000);
+      } else {
+        const j = await res.json().catch(() => ({}));
+        setCaptureMsg("❌ " + (j.error || "发送失败"));
+      }
+    } catch {
+      setCaptureMsg("❌ 网络错误");
+    }
   }
 
   const hasRooms = rooms.length > 0;
@@ -655,8 +674,19 @@ function DisplayMode({ rooms, shots, onCapture, onAddRoom }) {
               style={{ width: "100%", padding: "10px 14px", borderRadius: 10, fontSize: 14, marginBottom: 14 }} />
             <button className="btn-blue" onClick={handleCapture} disabled={capturing || !keyword.trim()}
               style={{ width: "100%", padding: "11px", borderRadius: 10, fontSize: 14, fontWeight: 500 }}>
-              {capturing ? "⏳ 正在抓取..." : "开始抓取"}
+              {capturing ? "⏳ 正在发送..." : "开始抓取"}
             </button>
+            {captureMsg && (
+              <div style={{
+                marginTop: 12, padding: "10px 14px", borderRadius: 9,
+                background: captureMsg.startsWith("✅") ? "rgba(52,211,153,0.10)" : "rgba(239,68,68,0.10)",
+                border: `1px solid ${captureMsg.startsWith("✅") ? "rgba(52,211,153,0.25)" : "rgba(239,68,68,0.25)"}`,
+                fontSize: 13, color: captureMsg.startsWith("✅") ? "#34d399" : "#f87171",
+                textAlign: "center", lineHeight: 1.5,
+              }}>
+                {captureMsg}
+              </div>
+            )}
 
             {rooms.length > 0 && (
               <div style={{ marginTop: 28, borderTop: "1px solid rgba(190,220,255,0.06)", paddingTop: 20 }}>
