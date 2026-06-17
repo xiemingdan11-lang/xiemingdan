@@ -50,14 +50,21 @@ type SkillKey = "full" | "simplified";
 const ALL_GROUP = "__all__";
 const CAPTURE_LIMIT_OPTIONS = [4, 8, 12, 20];
 const LS_API_KEY = "deepseek_api_key";
-const LS_SCHEDULED_TASKS = "live_scheduled_tasks";
+type ScheduledTaskFreq = "daily" | "weekly" | "monthly";
+const FREQ_LABELS: Record<ScheduledTaskFreq, string> = { daily: "每天", weekly: "每周", monthly: "每月" };
+const WEEKDAY_LABELS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 
 type ScheduledTask = {
   id: string;
   keyword: string;
-  time: string; // "HH:MM"
+  time: string;
+  freq: ScheduledTaskFreq;
+  weekday?: number;
+  monthday?: number;
   limit: number;
   enabled: boolean;
+  createdAt?: string;
+  lastRunAt?: string;
 };
 const LS_API_BASE = "relay_api_base";
 const DEFAULT_API_BASE = "https://ai.comfly.org";
@@ -196,30 +203,10 @@ export default function HomePage() {
     if (typeof window !== "undefined") {
       setApiKey(localStorage.getItem(LS_API_KEY) || "");
       setApiBaseUrl(localStorage.getItem(LS_API_BASE) || DEFAULT_API_BASE);
-      const saved = localStorage.getItem(LS_SCHEDULED_TASKS);
-      if (saved) setScheduledTasks(JSON.parse(saved));
+      fetch("/api/live/scheduled-tasks").then((r) => r.json()).then((d) => { if (d.tasks) setScheduledTasks(d.tasks); });
     }
   }, []);
 
-  // 每分钟检查定时任务
-  useEffect(() => {
-    const tick = () => {
-      if (typeof window === "undefined") return;
-      const tasks: ScheduledTask[] = JSON.parse(localStorage.getItem(LS_SCHEDULED_TASKS) || "[]");
-      const now = new Date();
-      const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-      tasks.filter((t) => t.enabled && t.keyword.trim() && t.time === hhmm).forEach((t) => {
-        fetch("/api/live/agent/commands", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: "search-capture", keyword: t.keyword.trim(), limit: t.limit })
-        });
-        showToast(`定时任务「${t.keyword}」已触发`);
-      });
-    };
-    const id = setInterval(tick, 60_000);
-    return () => clearInterval(id);
-  }, []);
 
   useEffect(() => {
     if (!activeRoomId && rooms[0]) setActiveRoomId(rooms[0].id);
@@ -451,20 +438,24 @@ export default function HomePage() {
     });
   };
 
-  const saveScheduledTasks = (tasks: ScheduledTask[]) => {
-    setScheduledTasks(tasks);
-    if (typeof window !== "undefined") localStorage.setItem(LS_SCHEDULED_TASKS, JSON.stringify(tasks));
+  const addScheduledTask = async () => {
+    const res = await fetch("/api/live/scheduled-tasks", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ keyword: "", time: "09:00", freq: "daily", limit: 4, enabled: true })
+    });
+    const d = await res.json();
+    if (d.task) setScheduledTasks((prev) => [...prev, d.task]);
   };
 
-  const addScheduledTask = () => {
-    const task: ScheduledTask = { id: Date.now().toString(), keyword: "", time: "09:00", limit: 4, enabled: true };
-    saveScheduledTasks([...scheduledTasks, task]);
+  const removeScheduledTask = async (id: string) => {
+    setScheduledTasks((prev) => prev.filter((t) => t.id !== id));
+    await fetch("/api/live/scheduled-tasks", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
   };
 
-  const removeScheduledTask = (id: string) => saveScheduledTasks(scheduledTasks.filter((t) => t.id !== id));
-
-  const patchScheduledTask = (id: string, patch: Partial<ScheduledTask>) =>
-    saveScheduledTasks(scheduledTasks.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  const patchScheduledTask = async (id: string, patch: Partial<ScheduledTask>) => {
+    setScheduledTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+    await fetch("/api/live/scheduled-tasks", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...patch }) });
+  };
 
   return (
     <main className="min-h-screen bg-[#e7e7e4] text-[#111111]">
@@ -569,24 +560,39 @@ export default function HomePage() {
           </div>
           {scheduledTasks.length === 0 ? (
             <div className="rounded-xl border border-dashed border-black/15 py-6 text-center text-sm text-black/38">
-              暂无定时任务 · 点击「新增任务」设置每日自动抓取时间
+              暂无定时任务 · 点击「新增任务」设置自动抓取
             </div>
           ) : (
             <div className="grid gap-2">
               {scheduledTasks.map((task) => (
-                <div key={task.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-black/8 bg-[#f9f9f7] px-4 py-3">
+                <div key={task.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-black/8 bg-[#f9f9f7] px-4 py-3">
                   <input
                     value={task.keyword}
                     onChange={(e) => patchScheduledTask(task.id, { keyword: e.target.value })}
                     placeholder="关键词，例如：好奇"
-                    className="h-9 flex-1 rounded-full border border-black/10 bg-white px-3 text-sm outline-none focus:border-black/30"
+                    className="h-9 w-40 flex-1 rounded-full border border-black/10 bg-white px-3 text-sm outline-none focus:border-black/30"
                   />
-                  <input
-                    type="time"
-                    value={task.time}
-                    onChange={(e) => patchScheduledTask(task.id, { time: e.target.value })}
-                    className="h-9 rounded-full border border-black/10 bg-white px-3 text-sm outline-none focus:border-black/30"
-                  />
+                  {/* 频率 */}
+                  <select value={task.freq ?? "daily"} onChange={(e) => patchScheduledTask(task.id, { freq: e.target.value as ScheduledTaskFreq })}
+                    className="h-9 rounded-full border border-black/10 bg-white px-3 text-sm outline-none focus:border-black/30">
+                    {(Object.entries(FREQ_LABELS) as [ScheduledTaskFreq, string][]).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                  {/* 周几（weekly） */}
+                  {task.freq === "weekly" && (
+                    <select value={task.weekday ?? 1} onChange={(e) => patchScheduledTask(task.id, { weekday: Number(e.target.value) })}
+                      className="h-9 rounded-full border border-black/10 bg-white px-3 text-sm outline-none focus:border-black/30">
+                      {WEEKDAY_LABELS.map((l, i) => <option key={i} value={i}>{l}</option>)}
+                    </select>
+                  )}
+                  {/* 几号（monthly） */}
+                  {task.freq === "monthly" && (
+                    <select value={task.monthday ?? 1} onChange={(e) => patchScheduledTask(task.id, { monthday: Number(e.target.value) })}
+                      className="h-9 rounded-full border border-black/10 bg-white px-3 text-sm outline-none focus:border-black/30">
+                      {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => <option key={d} value={d}>{d}号</option>)}
+                    </select>
+                  )}
+                  <input type="time" value={task.time} onChange={(e) => patchScheduledTask(task.id, { time: e.target.value })}
+                    className="h-9 rounded-full border border-black/10 bg-white px-3 text-sm outline-none focus:border-black/30" />
                   <div className="flex items-center gap-1">
                     {CAPTURE_LIMIT_OPTIONS.map((n) => (
                       <button key={n} onClick={() => patchScheduledTask(task.id, { limit: n })}
@@ -599,6 +605,7 @@ export default function HomePage() {
                     className={`h-9 rounded-full border px-4 text-sm font-semibold transition ${task.enabled ? "border-[#64e994] bg-[#64e994] text-black" : "border-black/10 bg-white text-black/42"}`}>
                     {task.enabled ? "开启" : "关闭"}
                   </button>
+                  {task.lastRunAt && <span className="text-xs text-black/32">上次：{task.lastRunAt.slice(0, 16).replace("T", " ")}</span>}
                   <button onClick={() => removeScheduledTask(task.id)}
                     className="grid h-9 w-9 place-items-center rounded-full border border-black/10 bg-white text-black/42 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500">
                     <Trash2 className="h-3.5 w-3.5" />
@@ -607,7 +614,7 @@ export default function HomePage() {
               ))}
             </div>
           )}
-          <p className="mt-3 text-xs text-black/32">定时任务在页面打开时有效 · 到达设定时间后自动向共享电脑发送截图指令</p>
+          <p className="mt-3 text-xs text-black/32">✅ 服务端定时 · 浏览器关闭也能自动触发 · Vercel Cron 每分钟检查一次（需 Pro 计划；Hobby 计划可手动在 Vercel 后台调整为每天执行）</p>
         </section>
       </div>
 
@@ -896,9 +903,9 @@ function ShotCard({ shot, index, onDelete, onAnalyze }: { shot: LiveShot; index:
           <Trash2 className="h-4 w-4" />
         </button>
       </div>
-      <div className="flex items-end justify-between gap-3 px-2 py-4">
+      <div className="flex items-end justify-between gap-3 px-2 py-3">
         <div className="min-w-0">
-          <div className="truncate text-xl font-semibold tracking-[-0.05em]">{shotDisplayName(shot)}</div>
+          <div className={`truncate text-sm font-medium ${dark ? "text-white/70" : "text-black/70"}`}>{shotDisplayName(shot)}</div>
           <div className={`mt-2 flex items-center gap-1 text-xs ${dark ? "text-white/48" : "text-black/48"}`}>
             <Clock className="h-3.5 w-3.5" />
             {formatDate(shot.capturedAt)}
@@ -954,8 +961,13 @@ function groupShots(shots: LiveShot[]): ShotGroup[] {
     buckets.set(groupKey, group);
   }
   return Array.from(buckets.entries())
-    .map(([key, shotMap]) => ({ key, label: key, shots: Array.from(shotMap.values()).sort(sortShotDesc) }))
-    .sort((a, b) => sortShotDesc(a.shots[0], b.shots[0]));
+    .map(([key, shotMap]) => ({
+      key, label: key,
+      // 组内按采集先后升序（第1张在最左）
+      shots: Array.from(shotMap.values()).sort(sortShotAsc)
+    }))
+    // 关键词组按最新截图降序（最新批次在最前）
+    .sort((a, b) => sortShotDesc(a.shots[a.shots.length - 1], b.shots[b.shots.length - 1]));
 }
 
 const BADGE_TEXTS = new Set(["认证徽章", "认证", "认证账号", "官方认证", "蓝v认证", "蓝V认证"]);
@@ -973,6 +985,12 @@ function shotDisplayName(shot: LiveShot): string {
     const kw = inferKeyword(shot);
     return kw !== "未分类" ? kw + " 直播间" : "直播间";
   }
+  // 提取账号名：roomName 格式常为"账号名·直播标题"，取·前部分
+  const dotIdx = name.indexOf("·");
+  if (dotIdx > 0) return name.slice(0, dotIdx).trim();
+  // 也兼容英文冒号 / 空格后缀如"账号名 直播间"
+  const spaceIdx = name.indexOf(" ");
+  if (spaceIdx > 0) return name.slice(0, spaceIdx).trim();
   return name;
 }
 
@@ -980,7 +998,12 @@ function normalizeKey(value: string) {
   return String(value || "").trim().toLowerCase();
 }
 
+function sortShotAsc(a?: LiveShot, b?: LiveShot) {
+  // 升序：按采集先后顺序展示（第1张在最前）
+  return new Date(a?.capturedAt || 0).getTime() - new Date(b?.capturedAt || 0).getTime();
+}
 function sortShotDesc(a?: LiveShot, b?: LiveShot) {
+  // 降序：最新组排最前
   return new Date(b?.capturedAt || 0).getTime() - new Date(a?.capturedAt || 0).getTime();
 }
 

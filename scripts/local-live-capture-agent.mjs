@@ -376,7 +376,9 @@ async function extractCandidates(page, keyword, limit) {
         const text = (anchor.textContent || "").replace(/\s+/g, " ").trim();
         const cardText = (card.textContent || "").replace(/\s+/g, " ").trim();
         const inMainColumn = rect.left < window.innerWidth * 0.78;
-        const inViewportBand = rect.top > 80 && rect.top < window.innerHeight * 3;
+        // 使用绝对位置（加上滚动偏移），确保已滚出视口顶部的元素也能被收录
+        const absoluteTop = rect.top + window.scrollY;
+        const inViewportBand = absoluteTop > 0 && absoluteTop < window.scrollY + window.innerHeight * 4;
         const keywordMatched =
           !normalizedKeyword ||
           normalize(text).includes(normalizedKeyword) ||
@@ -392,7 +394,7 @@ async function extractCandidates(page, keyword, limit) {
           title: text.slice(0, 120) || cardText.slice(0, 120) || "live room",
           context: cardText.slice(0, 240),
           url,
-          top: rect.top,
+          top: rect.top + window.scrollY,   // 绝对文档位置，保证从第1个结果顺序截图
           left: rect.left
         });
       }

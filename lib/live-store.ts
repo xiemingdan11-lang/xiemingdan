@@ -39,10 +39,26 @@ export type AgentCommand = {
   resultCount?: number;
 };
 
+export type ScheduledTaskFreq = "daily" | "weekly" | "monthly";
+
+export type ScheduledTask = {
+  id: string;
+  keyword: string;
+  time: string;        // "HH:MM"
+  freq: ScheduledTaskFreq;
+  weekday?: number;    // 0=Sun … 6=Sat (weekly only)
+  monthday?: number;   // 1–31 (monthly only)
+  limit: number;
+  enabled: boolean;
+  createdAt: string;
+  lastRunAt?: string;
+};
+
 export type LiveStore = {
   rooms: LiveRoom[];
   shots: LiveShot[];
   commands?: AgentCommand[];
+  scheduledTasks?: ScheduledTask[];
 };
 
 const DATA_DIR = process.env.WORKBENCH_DATA_DIR ?? path.join(process.cwd(), "data");
