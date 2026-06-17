@@ -1,7 +1,9 @@
 "use client";
 
 import {
+  Check,
   Clock,
+  Copy,
   ExternalLink,
   Folder,
   ImageIcon,
@@ -11,9 +13,12 @@ import {
   RefreshCw,
   Save,
   Search,
-  Trash2
+  Settings,
+  Sparkles,
+  Trash2,
+  X
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type LiveRoom = {
   id: string;
@@ -39,9 +44,16 @@ type LiveShot = {
 };
 
 type ShotGroup = { key: string; label: string; shots: LiveShot[] };
+type SkillKey = "full" | "simplified";
 
 const ALL_GROUP = "__all__";
 const SEARCH_CAPTURE_LIMIT = 4;
+const LS_API_KEY = "deepseek_api_key";
+
+const SKILLS: Record<SkillKey, { label: string; desc: string }> = {
+  full: { label: "反推-完整版", desc: "含镜头构图分析" },
+  simplified: { label: "反推-简化版", desc: "适用于豆包/可灵" }
+};
 
 const emptyRoom = (): LiveRoom => ({
   id: `room-${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 8)}`,
@@ -66,6 +78,15 @@ export default function HomePage() {
   const [toast, setToast] = useState("");
   const [lastTask, setLastTask] = useState("");
 
+  // ── Analysis modal ──────────────────────────────────────────────────────────
+  const [selectedShot, setSelectedShot] = useState<LiveShot | null>(null);
+  const [apiKey, setApiKey] = useState("");
+  const [showApiInput, setShowApiInput] = useState(false);
+  const [activeSkill, setActiveSkill] = useState<SkillKey | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState("");
+  const [copied, setCopied] = useState(false);
+
   const activeRoom = rooms.find((room) => room.id === activeRoomId) ?? rooms[0];
   const publishedShots = useMemo(() => shots.filter((shot) => shot.status === "published"), [shots]);
   const failedCount = useMemo(() => shots.filter((shot) => shot.status === "failed").length, [shots]);
@@ -75,11 +96,20 @@ export default function HomePage() {
 
   useEffect(() => {
     refresh();
+    const saved = typeof window !== "undefined" ? localStorage.getItem(LS_API_KEY) || "" : "";
+    setApiKey(saved);
   }, []);
 
   useEffect(() => {
     if (!activeRoomId && rooms[0]) setActiveRoomId(rooms[0].id);
   }, [activeRoomId, rooms]);
+
+  // Close modal on Escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setSelectedShot(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const refresh = async () => {
     setLoading(true);
@@ -201,6 +231,49 @@ export default function HomePage() {
     if (activeRoomId === id) setActiveRoomId(next[0]?.id ?? "");
   };
 
+  const openAnalysis = (shot: LiveShot) => {
+    setSelectedShot(shot);
+    setAnalysisResult("");
+    setCopied(false);
+    setAnalyzing(false);
+  };
+
+  const runAnalysis = async () => {
+    if (!selectedShot) return;
+    if (!apiKey.trim()) { setShowApiInput(true); showToast("请先设置 DeepSeek API Key"); return; }
+    setAnalyzing(true);
+    setAnalysisResult("");
+    try {
+      const res = await fetch("/api/live/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl: selectedShot.imageUrl, skill: activeSkill, apiKey })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) { showToast(data.error || "分析失败，请重试"); return; }
+      setAnalysisResult(data.content || "");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const saveApiKey = (value: string) => {
+    setApiKey(value);
+    if (typeof window !== "undefined") {
+      if (value) localStorage.setItem(LS_API_KEY, value);
+      else localStorage.removeItem(LS_API_KEY);
+    }
+  };
+
+  const copyResult = async () => {
+    if (!analysisResult) return;
+    await navigator.clipboard.writeText(analysisResult);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
+  };
+
+  const toggleSkill = (key: SkillKey) => setActiveSkill((prev) => (prev === key ? null : key));
+
   return (
     <main className="min-h-screen bg-[#e7e7e4] text-[#111111]">
       <header className="border-b border-black/10 bg-[#eeeeeb]/90 backdrop-blur">
@@ -296,7 +369,13 @@ export default function HomePage() {
         {visibleShots.length ? (
           <section className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-7">
             {visibleShots.map((shot, index) => (
-              <ShotCard key={shot.id} shot={shot} index={index} onDelete={() => deleteShot(shot.id)} />
+              <ShotCard
+                key={shot.id}
+                shot={shot}
+                index={index}
+                onDelete={() => deleteShot(shot.id)}
+                onAnalyze={() => openAnalysis(shot)}
+              />
             ))}
           </section>
         ) : (
@@ -339,9 +418,200 @@ export default function HomePage() {
       </div>
 
       {toast && <div className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-full bg-[#111111] px-5 py-3 text-sm font-medium text-white shadow-2xl">{toast}</div>}
+
+      {selectedShot && (
+        <AnalysisModal
+          shot={selectedShot}
+          apiKey={apiKey}
+          showApiInput={showApiInput}
+          activeSkill={activeSkill}
+          analyzing={analyzing}
+          analysisResult={analysisResult}
+          copied={copied}
+          onClose={() => setSelectedShot(null)}
+          onToggleApiInput={() => setShowApiInput((v) => !v)}
+          onSaveApiKey={saveApiKey}
+          onToggleSkill={toggleSkill}
+          onAnalyze={runAnalysis}
+          onCopy={copyResult}
+        />
+      )}
     </main>
   );
 }
+
+// ── Analysis Modal ────────────────────────────────────────────────────────────
+
+function AnalysisModal({
+  shot,
+  apiKey,
+  showApiInput,
+  activeSkill,
+  analyzing,
+  analysisResult,
+  copied,
+  onClose,
+  onToggleApiInput,
+  onSaveApiKey,
+  onToggleSkill,
+  onAnalyze,
+  onCopy
+}: {
+  shot: LiveShot;
+  apiKey: string;
+  showApiInput: boolean;
+  activeSkill: SkillKey | null;
+  analyzing: boolean;
+  analysisResult: string;
+  copied: boolean;
+  onClose: () => void;
+  onToggleApiInput: () => void;
+  onSaveApiKey: (v: string) => void;
+  onToggleSkill: (k: SkillKey) => void;
+  onAnalyze: () => void;
+  onCopy: () => void;
+}) {
+  const apiInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (showApiInput) apiInputRef.current?.focus();
+  }, [showApiInput]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="flex h-[90vh] w-full max-w-5xl overflow-hidden rounded-[32px] bg-white shadow-[0_40px_120px_rgba(0,0,0,0.35)]">
+        {/* Left: image */}
+        <div className="relative flex w-[38%] shrink-0 items-center justify-center bg-[#111111]">
+          <div className="h-full w-full">
+            <img
+              src={shot.imageUrl}
+              alt={shot.roomName}
+              className="h-full w-full object-contain"
+            />
+          </div>
+          <div className="absolute left-3 top-3 rounded-full bg-[#64e994] px-3 py-1 text-xs font-semibold text-black">
+            {inferKeyword(shot)}
+          </div>
+          <a
+            href={shot.imageUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="absolute bottom-3 right-3 grid h-9 w-9 place-items-center rounded-full bg-white/90 text-black shadow transition hover:bg-white"
+            title="在新标签页打开原图"
+          >
+            <ExternalLink className="h-4 w-4" />
+          </a>
+        </div>
+
+        {/* Right: analysis panel */}
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-black/8 px-6 py-4">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-black/38">AI Analysis</div>
+              <h2 className="mt-0.5 truncate text-lg font-semibold tracking-[-0.04em]">{shot.roomName}</h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={onToggleApiInput}
+                title="设置 API Key"
+                className={`grid h-9 w-9 place-items-center rounded-full border transition ${showApiInput ? "border-[#111111] bg-[#111111] text-white" : "border-black/10 bg-[#f4f4f1] text-black hover:border-black/20"}`}
+              >
+                <Settings className="h-4 w-4" />
+              </button>
+              <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-full border border-black/10 bg-[#f4f4f1] text-black transition hover:bg-[#111111] hover:text-white">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-6 py-5">
+            {/* API Key input (collapsible) */}
+            {showApiInput && (
+              <div className="rounded-2xl border border-black/10 bg-[#f7f7f5] p-4">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-black/42">DeepSeek API Key</div>
+                <div className="flex gap-2">
+                  <input
+                    ref={apiInputRef}
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => onSaveApiKey(e.target.value)}
+                    placeholder="sk-..."
+                    className="h-10 flex-1 rounded-full border border-black/10 bg-white px-4 text-sm outline-none transition focus:border-black/30"
+                  />
+                </div>
+                <p className="mt-2 text-xs text-black/38">保存于本地，不会上传。也可在 Vercel 配置 DEEPSEEK_API_KEY 环境变量。</p>
+              </div>
+            )}
+
+            {/* SKILL toggles */}
+            <div>
+              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-black/42">分析模式（可选）</div>
+              <div className="flex flex-wrap gap-2">
+                {(Object.entries(SKILLS) as [SkillKey, { label: string; desc: string }][]).map(([key, skill]) => (
+                  <button
+                    key={key}
+                    onClick={() => onToggleSkill(key)}
+                    className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition ${activeSkill === key ? "border-[#111111] bg-[#111111] text-white" : "border-black/10 bg-[#f4f4f1] text-black hover:border-black/20"}`}
+                  >
+                    {activeSkill === key && <Check className="h-3.5 w-3.5" />}
+                    <span>{skill.label}</span>
+                    <span className={`text-xs ${activeSkill === key ? "text-white/60" : "text-black/38"}`}>{skill.desc}</span>
+                  </button>
+                ))}
+                {activeSkill === null && (
+                  <span className="flex items-center px-1 text-xs text-black/38">默认：提取生图关键词</span>
+                )}
+              </div>
+            </div>
+
+            {/* Analyze button */}
+            <button
+              onClick={onAnalyze}
+              disabled={analyzing}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#111111] text-sm font-semibold text-white transition hover:bg-[#222] disabled:opacity-60"
+            >
+              {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {analyzing ? "分析中…" : "分析直播间"}
+            </button>
+
+            {/* Result */}
+            {analysisResult && (
+              <div className="flex flex-1 flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-semibold uppercase tracking-[0.12em] text-black/42">分析结果</div>
+                  <button
+                    onClick={onCopy}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition ${copied ? "border-[#64e994] bg-[#64e994] text-black" : "border-black/10 bg-white text-black hover:border-black/20"}`}
+                  >
+                    {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                    {copied ? "已复制" : "复制"}
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto rounded-2xl border border-black/8 bg-[#f7f7f5] p-4 text-sm leading-relaxed text-black/80 whitespace-pre-wrap">
+                  {analysisResult}
+                </div>
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!analysisResult && !analyzing && (
+              <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center text-black/35">
+                <Sparkles className="h-8 w-8" />
+                <div className="text-sm">点击「分析直播间」，AI 将提取画面关键词<br />可搭配 SKILL 获得更详细的提示词</div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Components ────────────────────────────────────────────────────────────────
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
@@ -352,16 +622,27 @@ function Stat({ label, value }: { label: string; value: number }) {
   );
 }
 
-function ShotCard({ shot, index, onDelete }: { shot: LiveShot; index: number; onDelete: () => void }) {
+function ShotCard({ shot, index, onDelete, onAnalyze }: { shot: LiveShot; index: number; onDelete: () => void; onAnalyze: () => void }) {
   const dark = index % 5 === 0;
   return (
     <article className={`group overflow-hidden rounded-[30px] p-3 shadow-[0_22px_60px_rgba(0,0,0,0.12)] transition duration-200 hover:-translate-y-1 ${dark ? "bg-[#111111] text-white" : "bg-white text-black"}`}>
       <div className="relative overflow-hidden rounded-[24px] bg-[#dcdcd9]">
-        <a href={shot.imageUrl} target="_blank" rel="noreferrer" className="block">
+        {/* Clickable image → open analysis */}
+        <button onClick={onAnalyze} className="block w-full cursor-pointer">
           <div className="aspect-[9/16]">
             <img src={shot.imageUrl} alt={shot.roomName} loading="lazy" className="h-full w-full object-cover" />
           </div>
-        </a>
+        </button>
+        {/* Hover overlay */}
+        <div
+          onClick={onAnalyze}
+          className="pointer-events-none absolute inset-0 flex cursor-pointer items-center justify-center bg-black/0 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:bg-black/35 group-hover:opacity-100"
+        >
+          <div className="flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-black shadow-lg">
+            <Sparkles className="h-4 w-4" />
+            分析直播间
+          </div>
+        </div>
         <div className="absolute left-3 top-3 rounded-full bg-[#64e994] px-3 py-1 text-xs font-semibold text-black">
           {inferKeyword(shot)}
         </div>
@@ -413,6 +694,8 @@ function Field({ label, value, onChange, type = "text" }: { label: string; value
     </label>
   );
 }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function groupShots(shots: LiveShot[]): ShotGroup[] {
   const buckets = new Map<string, Map<string, LiveShot>>();
