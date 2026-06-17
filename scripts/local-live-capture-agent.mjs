@@ -379,14 +379,10 @@ async function extractCandidates(page, keyword, limit) {
         // 使用绝对位置（加上滚动偏移），确保已滚出视口顶部的元素也能被收录
         const absoluteTop = rect.top + window.scrollY;
         const inViewportBand = absoluteTop > 0 && absoluteTop < window.scrollY + window.innerHeight * 4;
-        const keywordMatched =
-          !normalizedKeyword ||
-          normalize(text).includes(normalizedKeyword) ||
-          normalize(cardText).includes(normalizedKeyword) ||
-          normalize(url).includes(normalizedKeyword);
+        // 搜索页已按关键词过滤，不再对候选结果做二次关键词校验，直接按位置顺序收录所有直播间链接
         const liveMatched = new RegExp(liveHintRe).test(cardText) || new RegExp(liveHintRe).test(text);
         const roomKey = liveRoomKey(url);
-        if (!inMainColumn || !inViewportBand || !keywordMatched || !liveMatched || seen.has(roomKey)) continue;
+        if (!inMainColumn || !inViewportBand || !liveMatched || seen.has(roomKey)) continue;
 
         seen.add(roomKey);
         items.push({
@@ -454,22 +450,15 @@ async function searchAndCapture(command) {
           );
           await prepareLivePage(livePage, candidate.url);
           const state = await tryEnterLiveRoom(livePage);
-          const titleMatched = normalizeText(candidate.title).includes(normalizedKeyword);
-          const pageMatched = normalizeText(`${state.title}\n${state.text}`).includes(normalizedKeyword);
           const openedLiveId = extractLiveIdentity(state.url);
           const candidateLiveId = extractLiveIdentity(candidate.url);
           const liveIdentity = openedLiveId || candidateLiveId;
           const specificRoom = Boolean(openedLiveId);
 
-          if (
-            state.blocked ||
-            state.ended ||
-            !state.looksLive ||
-            !specificRoom ||
-            (!titleMatched && !pageMatched) ||
-            isGenericLiveTitle(candidate.title)
-          ) {
-            console.log(`[${new Date().toLocaleString()}] skip candidate after open: ${candidate.url}`);
+          // 只跳过：被封锁 / 已结束 / 不是直播 / 无法识别直播间ID
+          // 不再要求标题/页面包含关键词——搜索结果本身就是相关的
+          if (state.blocked || state.ended || !state.looksLive || !specificRoom) {
+            console.log(`[${new Date().toLocaleString()}] skip candidate (not live / blocked): ${candidate.url}`);
             continue;
           }
 
