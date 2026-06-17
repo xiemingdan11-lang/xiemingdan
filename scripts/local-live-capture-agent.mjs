@@ -82,6 +82,15 @@ function isSpecificLiveRoomUrl(value) {
   return /live\.douyin\.com\/[^/?#]+/.test(url) || /douyin\.com\/live\/[^/?#]+/.test(url);
 }
 
+function extractLiveIdentity(value) {
+  const url = String(value || "").trim();
+  if (!url) return "";
+  const match =
+    url.match(/live\.douyin\.com\/([^/?#]+)/i) ||
+    url.match(/douyin\.com\/live\/([^/?#]+)/i);
+  return match?.[1]?.toLowerCase() || "";
+}
+
 function isGenericLiveTitle(value) {
   return GENERIC_LIVE_TITLES.has(String(value || "").trim().toLowerCase());
 }
@@ -429,6 +438,7 @@ async function searchAndCapture(command) {
       }
 
       let uploaded = 0;
+      const uploadedLiveIds = new Set();
       for (const [index, candidate] of candidates.entries()) {
         if (uploaded >= limit) break;
         const livePage = await context.newPage();
@@ -440,7 +450,10 @@ async function searchAndCapture(command) {
           const state = await tryEnterLiveRoom(livePage);
           const titleMatched = normalizeText(candidate.title).includes(normalizedKeyword);
           const pageMatched = normalizeText(`${state.title}\n${state.text}`).includes(normalizedKeyword);
-          const specificRoom = isSpecificLiveRoomUrl(state.url || candidate.url);
+          const openedLiveId = extractLiveIdentity(state.url);
+          const candidateLiveId = extractLiveIdentity(candidate.url);
+          const liveIdentity = openedLiveId || candidateLiveId;
+          const specificRoom = Boolean(openedLiveId);
 
           if (
             state.blocked ||
@@ -454,7 +467,14 @@ async function searchAndCapture(command) {
             continue;
           }
 
-          const roomTitle = candidate.title || state.title || `${keyword} live ${uploaded + 1}`;
+          if (uploadedLiveIds.has(liveIdentity)) {
+            console.log(`[${new Date().toLocaleString()}] skip duplicate live room: ${liveIdentity}`);
+            continue;
+          }
+
+          uploadedLiveIds.add(liveIdentity);
+          const roomTitle =
+            !isGenericLiveTitle(candidate.title) ? candidate.title : candidate.context || state.title || `${keyword} live ${uploaded + 1}`;
           const room = makeTempRoom(candidateId(keyword, uploaded), roomTitle, state.url || candidate.url);
           const bytes = await captureCleanLive(livePage);
           await uploadShot(room, bytes, `Keyword ${keyword} live screenshot #${uploaded + 1}.`, keyword);
