@@ -638,9 +638,9 @@ function AnalysisModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="flex h-[90vh] w-full max-w-5xl overflow-hidden rounded-[32px] bg-white shadow-[0_40px_120px_rgba(0,0,0,0.35)]">
+      <div className="flex h-[92vh] w-full max-w-6xl overflow-hidden rounded-[32px] bg-white shadow-[0_40px_120px_rgba(0,0,0,0.35)]">
         {/* Left: image */}
-        <div className="relative flex w-[38%] shrink-0 items-center justify-center bg-[#111111]">
+        <div className="relative flex w-[46%] shrink-0 items-center justify-center bg-[#111111]">
           <div className="h-full w-full">
             <img
               src={shot.imageUrl}
