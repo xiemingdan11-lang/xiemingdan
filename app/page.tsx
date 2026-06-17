@@ -512,7 +512,7 @@ function AnalysisModal({
           <div className="flex items-center justify-between border-b border-black/8 px-6 py-4">
             <div>
               <div className="text-xs font-semibold uppercase tracking-[0.18em] text-black/38">AI Analysis</div>
-              <h2 className="mt-0.5 truncate text-lg font-semibold tracking-[-0.04em]">{shot.roomName}</h2>
+              <h2 className="mt-0.5 truncate text-lg font-semibold tracking-[-0.04em]">{shotDisplayName(shot)}</h2>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -652,7 +652,7 @@ function ShotCard({ shot, index, onDelete, onAnalyze }: { shot: LiveShot; index:
       </div>
       <div className="flex items-end justify-between gap-3 px-2 py-4">
         <div className="min-w-0">
-          <div className="truncate text-xl font-semibold tracking-[-0.05em]">{shot.roomName}</div>
+          <div className="truncate text-xl font-semibold tracking-[-0.05em]">{shotDisplayName(shot)}</div>
           <div className={`mt-2 flex items-center gap-1 text-xs ${dark ? "text-white/48" : "text-black/48"}`}>
             <Clock className="h-3.5 w-3.5" />
             {formatDate(shot.capturedAt)}
@@ -712,11 +712,22 @@ function groupShots(shots: LiveShot[]): ShotGroup[] {
     .sort((a, b) => sortShotDesc(a.shots[0], b.shots[0]));
 }
 
+const BADGE_TEXTS = new Set(["认证徽章", "认证", "认证账号", "官方认证", "蓝v认证", "蓝V认证"]);
+
 function inferKeyword(shot: LiveShot) {
   const explicit = shot.keyword?.trim();
   if (explicit) return explicit;
   const match = shot.message?.match(/关键词\s+(.+?)\s+(?:自动|搜索|直播|截图|第)/);
   return match?.[1]?.trim() || "未分类";
+}
+
+function shotDisplayName(shot: LiveShot): string {
+  const name = shot.roomName?.trim() || "";
+  if (!name || BADGE_TEXTS.has(name)) {
+    const kw = inferKeyword(shot);
+    return kw !== "未分类" ? kw + " 直播间" : "直播间";
+  }
+  return name;
 }
 
 function normalizeKey(value: string) {

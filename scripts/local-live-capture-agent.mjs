@@ -95,6 +95,11 @@ function isGenericLiveTitle(value) {
   return GENERIC_LIVE_TITLES.has(String(value || "").trim().toLowerCase());
 }
 
+const BADGE_TEXTS = new Set(["认证徽章", "认证", "认证账号", "官方认证", "蓝v认证"]);
+function isBadgeText(value) {
+  return BADGE_TEXTS.has(String(value || "").trim());
+}
+
 async function getStore() {
   const res = await fetch(new URL("/api/live/rooms", serverUrl), { cache: "no-store" });
   if (!res.ok) throw new Error(`read rooms failed: ${res.status}`);
@@ -180,7 +185,11 @@ async function prepareCurrentPage(page) {
   await page.addStyleTag({
     content: `
       [class*="danmu" i], [class*="barrage" i], [class*="comment" i],
-      [data-e2e*="comment" i], [data-e2e*="danmu" i] {
+      [data-e2e*="comment" i], [data-e2e*="danmu" i],
+      [data-e2e*="live-player-bottom" i], [class*="liveBottom" i],
+      [class*="bottom-bar" i], [class*="bottomBar" i],
+      [class*="xgplayer-controls" i], [class*="live-control" i],
+      [class*="liveControl" i], [class*="toolbar" i][class*="live" i] {
         visibility: hidden !important;
       }
     `
@@ -270,13 +279,8 @@ function makePortraitClip(box) {
 }
 
 async function captureCleanLive(page) {
-  const mediaRect = await getLargestMediaRect(page);
-  if (!mediaRect) return page.screenshot({ fullPage: false, type: "jpeg", quality: 80 });
-  return page.screenshot({
-    type: "jpeg",
-    quality: 80,
-    clip: makePortraitClip(mediaRect)
-  });
+  // 直接截 1080×1920 全屏 viewport，保证无缝隙
+  return page.screenshot({ fullPage: false, type: "jpeg", quality: 85 });
 }
 
 function isSearchPageUrl(url) {
@@ -473,8 +477,9 @@ async function searchAndCapture(command) {
           }
 
           uploadedLiveIds.add(liveIdentity);
-          const roomTitle =
-            !isGenericLiveTitle(candidate.title) ? candidate.title : candidate.context || state.title || `${keyword} live ${uploaded + 1}`;
+          const fromPageTitle = state.title && !isGenericLiveTitle(state.title) ? state.title : "";
+          const fromCandidateTitle = !isGenericLiveTitle(candidate.title) && !isBadgeText(candidate.title) ? candidate.title : "";
+          const roomTitle = fromPageTitle || fromCandidateTitle || candidate.context || `${keyword} live ${uploaded + 1}`;
           const room = makeTempRoom(candidateId(keyword, uploaded), roomTitle, state.url || candidate.url);
           const bytes = await captureCleanLive(livePage);
           await uploadShot(room, bytes, `Keyword ${keyword} live screenshot #${uploaded + 1}.`, keyword);
