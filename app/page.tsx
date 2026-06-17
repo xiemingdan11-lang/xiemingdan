@@ -49,6 +49,79 @@ type SkillKey = "full" | "simplified";
 const ALL_GROUP = "__all__";
 const SEARCH_CAPTURE_LIMIT = 4;
 const LS_API_KEY = "deepseek_api_key";
+const LS_API_BASE = "relay_api_base";
+const DEFAULT_API_BASE = "https://ai.comfly.org";
+
+// ── AI 分析提示词 ──────────────────────────────────────────────────────────────
+
+const PROMPT_FULL = `你是一个极其死磕细节的图像反推专家与AI提示词工程师。你的任务是打破AI的"刻板印象"，通过深度解构画面的"主信息、画面结构、质感、光影、镜头"，结合"几何形状+物理材质"的精准描述，完美还原参考图视觉张力，输出可直接执行的中文提示词。
+
+核心工作纪律：
+1. 精准可视化（拒绝空泛）：禁止使用宽泛词汇（如"复杂的机械"、"好看的背景"）。必须拆解为【几何形状+物理材质】（如"弯曲的拉丝金属管与高透玻璃夹具"）。
+2. 严谨推测：对于不确定的信息，必须使用"可能/疑似"并提供备选，绝对不要硬猜。
+3. 空间张力校正：精准区分"悬浮特效"与"地面物理存在"。
+
+按照以下"5抓"原则进行像素级拆解：
+- 抓主信息：主体是谁/是什么材质？在做什么？画面情绪？
+- 抓画面结构：几何位置、前中背景层次、留白、视觉中心、构图规则？
+- 抓质感与风格：媒介类型（摄影/3D/插画）？材质细节（塑料/金属/毛绒/磨砂玻璃）？
+- 抓光影与色调：冷暖、饱和度、对比度？主光源在哪？柔光/硬光/轮廓光？
+- 抓镜头语言：景别（特写/全身）？视角（平视/俯视/仰视）？景深？焦段感？
+
+请严格按照以下格式输出（全部中文）：
+
+📷 画面简介：
+[用1-2句话总结主体、场景与整体氛围]
+
+🎥 镜头视角分析：
+[详细分析景别、机位视角、焦段感与景深效果]
+
+📐 构图排布分析：
+[详细拆解构图法则、前中背景层次叠放关系、留白比例]
+
+✨ 自然语言版提示词：
+\`\`\`
+[基于"5抓"原则，融合几何、材质、光影、镜头语言，写一段逻辑连贯的中文提示词]
+\`\`\`
+
+🚫 负面提示词：
+\`\`\`
+[防翻车词汇：低画质, 畸变, 模糊, 抠图感, 水印 等]
+\`\`\``;
+
+const PROMPT_SIMPLIFIED = `你是一个图像反推专家与AI提示词工程师。通过深度解构画面的"主信息、画面结构、质感、光影、镜头"，结合"几何形状+物理材质"的精准描述，输出可直接执行的中文提示词。
+
+核心规则：禁止使用宽泛词汇，必须拆解为【几何形状+物理材质】。全部输出中文。
+
+请严格按照以下格式输出：
+
+📷 画面简介：
+[用1-2句话总结主体、场景与整体氛围]
+
+✨ 自然语言提示词（适用于 Midjourney / 豆包 / 可灵）：
+\`\`\`
+[基于主体材质、光影、镜头语言，写一段逻辑连贯的中文提示词]
+\`\`\`
+
+🚫 负面提示词：
+\`\`\`
+[防翻车词汇：低画质, 畸变, 模糊, 抠图感, 水印 等]
+\`\`\``;
+
+const PROMPT_DEFAULT = `你是一个直播间画面分析专家。请分析这张直播间截图，提取可用于AI生图复刻的关键视觉元素，输出中文关键词。
+
+请按以下维度分析，每条简洁直观，可直接复制用于生图提示词：
+
+🎨 整体风格：[如 618大促氛围、科技蓝、温馨家居、美妆时尚等]
+🎭 色调配色：[主色调 + 辅助色 + 氛围感]
+🏠 背景布景：[背景元素、装饰道具、灯光布置方式]
+👗 主播形象：[服装风格、妆容氛围、整体气质]
+📦 产品陈列：[展示方式、价格标牌样式、促销元素]
+
+💡 生图关键词串：
+\`\`\`
+[精炼为可直接粘贴到生图模型的中文关键词，用逗号分隔]
+\`\`\``;
 
 const SKILLS: Record<SkillKey, { label: string; desc: string }> = {
   full: { label: "反推-完整版", desc: "含镜头构图分析" },
@@ -81,6 +154,7 @@ export default function HomePage() {
   // ── Analysis modal ──────────────────────────────────────────────────────────
   const [selectedShot, setSelectedShot] = useState<LiveShot | null>(null);
   const [apiKey, setApiKey] = useState("");
+  const [apiBaseUrl, setApiBaseUrl] = useState(DEFAULT_API_BASE);
   const [showApiInput, setShowApiInput] = useState(false);
   const [activeSkill, setActiveSkill] = useState<SkillKey | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -97,8 +171,10 @@ export default function HomePage() {
 
   useEffect(() => {
     refresh();
-    const saved = typeof window !== "undefined" ? localStorage.getItem(LS_API_KEY) || "" : "";
-    setApiKey(saved);
+    if (typeof window !== "undefined") {
+      setApiKey(localStorage.getItem(LS_API_KEY) || "");
+      setApiBaseUrl(localStorage.getItem(LS_API_BASE) || DEFAULT_API_BASE);
+    }
   }, []);
 
   useEffect(() => {
@@ -242,22 +318,53 @@ export default function HomePage() {
 
   const runAnalysis = async () => {
     if (!selectedShot) return;
-    if (!apiKey.trim()) { setShowApiInput(true); showToast("请先设置 DeepSeek API Key"); return; }
+    if (!apiKey.trim()) { setShowApiInput(true); showToast("请先设置 API Key"); return; }
     setAnalyzing(true);
     setAnalysisResult("");
     setAnalysisError("");
     try {
-      const res = await fetch("/api/live/analyze", {
+      // Step 1: 从服务端获取图片 base64（避免跨域）
+      const imgRes = await fetch("/api/live/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageUrl: selectedShot.imageUrl, skill: activeSkill, apiKey })
+        body: JSON.stringify({ imageUrl: selectedShot.imageUrl, getImageOnly: true })
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data.error) {
-        setAnalysisError(data.error || "分析失败，请重试");
+      const imgData = await imgRes.json().catch(() => ({})) as { base64?: string; mimeType?: string; error?: string };
+      if (!imgRes.ok || imgData.error || !imgData.base64) {
+        setAnalysisError(imgData.error || "获取图片失败");
         return;
       }
-      setAnalysisResult(data.content || "");
+
+      // Step 2: 直接从浏览器调用 AI（绕过 Vercel 地区限制）
+      const systemPrompt = activeSkill === "full" ? PROMPT_FULL : activeSkill === "simplified" ? PROMPT_SIMPLIFIED : PROMPT_DEFAULT;
+      const base = (apiBaseUrl || DEFAULT_API_BASE).replace(/\/$/, "");
+      const aiRes = await fetch(`${base}/v1/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey.trim()}` },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: systemPrompt },
+            {
+              role: "user",
+              content: [
+                { type: "image_url", image_url: { url: `data:${imgData.mimeType};base64,${imgData.base64}` } },
+                { type: "text", text: "请分析这张直播间截图，输出可用于AI生图复刻的中文关键词和提示词。" }
+              ]
+            }
+          ],
+          max_tokens: 2000
+        })
+      });
+      if (!aiRes.ok) {
+        const errData = await aiRes.json().catch(() => ({}) as { error?: { message?: string } });
+        setAnalysisError((errData as { error?: { message?: string } }).error?.message || `API 错误 ${aiRes.status}`);
+        return;
+      }
+      const aiData = await aiRes.json() as { choices?: Array<{ message?: { content?: string } }> };
+      setAnalysisResult(aiData.choices?.[0]?.message?.content || "");
+    } catch (err: unknown) {
+      setAnalysisError(err instanceof Error ? err.message : "未知错误");
     } finally {
       setAnalyzing(false);
     }
@@ -268,6 +375,14 @@ export default function HomePage() {
     if (typeof window !== "undefined") {
       if (value) localStorage.setItem(LS_API_KEY, value);
       else localStorage.removeItem(LS_API_KEY);
+    }
+  };
+
+  const saveApiBaseUrl = (value: string) => {
+    setApiBaseUrl(value);
+    if (typeof window !== "undefined") {
+      if (value && value !== DEFAULT_API_BASE) localStorage.setItem(LS_API_BASE, value);
+      else localStorage.removeItem(LS_API_BASE);
     }
   };
 
@@ -429,6 +544,7 @@ export default function HomePage() {
         <AnalysisModal
           shot={selectedShot}
           apiKey={apiKey}
+          apiBaseUrl={apiBaseUrl}
           showApiInput={showApiInput}
           activeSkill={activeSkill}
           analyzing={analyzing}
@@ -438,6 +554,7 @@ export default function HomePage() {
           onClose={() => setSelectedShot(null)}
           onToggleApiInput={() => setShowApiInput((v) => !v)}
           onSaveApiKey={saveApiKey}
+          onSaveApiBaseUrl={saveApiBaseUrl}
           onToggleSkill={toggleSkill}
           onAnalyze={runAnalysis}
           onCopy={copyResult}
@@ -452,6 +569,7 @@ export default function HomePage() {
 function AnalysisModal({
   shot,
   apiKey,
+  apiBaseUrl,
   showApiInput,
   activeSkill,
   analyzing,
@@ -461,12 +579,14 @@ function AnalysisModal({
   onClose,
   onToggleApiInput,
   onSaveApiKey,
+  onSaveApiBaseUrl,
   onToggleSkill,
   onAnalyze,
   onCopy
 }: {
   shot: LiveShot;
   apiKey: string;
+  apiBaseUrl: string;
   showApiInput: boolean;
   activeSkill: SkillKey | null;
   analyzing: boolean;
@@ -476,6 +596,7 @@ function AnalysisModal({
   onClose: () => void;
   onToggleApiInput: () => void;
   onSaveApiKey: (v: string) => void;
+  onSaveApiBaseUrl: (v: string) => void;
   onToggleSkill: (k: SkillKey) => void;
   onAnalyze: () => void;
   onCopy: () => void;
@@ -540,19 +661,29 @@ function AnalysisModal({
           <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-6 py-5">
             {/* API Key input (collapsible) */}
             {showApiInput && (
-              <div className="rounded-2xl border border-black/10 bg-[#f7f7f5] p-4">
-                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-black/42">API Key</div>
-                <div className="flex gap-2">
+              <div className="rounded-2xl border border-black/10 bg-[#f7f7f5] p-4 flex flex-col gap-3">
+                <div>
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-black/42">API Key</div>
                   <input
                     ref={apiInputRef}
                     type="password"
                     value={apiKey}
                     onChange={(e) => onSaveApiKey(e.target.value)}
                     placeholder="sk-..."
-                    className="h-10 flex-1 rounded-full border border-black/10 bg-white px-4 text-sm outline-none transition focus:border-black/30"
+                    className="h-10 w-full rounded-full border border-black/10 bg-white px-4 text-sm outline-none transition focus:border-black/30"
                   />
                 </div>
-                <p className="mt-2 text-xs text-black/38">保存于本地，不会上传。也可在 Vercel 配置 RELAY_API_KEY 环境变量。</p>
+                <div>
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-black/42">API Base URL</div>
+                  <input
+                    type="text"
+                    value={apiBaseUrl}
+                    onChange={(e) => onSaveApiBaseUrl(e.target.value)}
+                    placeholder="https://ai.comfly.org"
+                    className="h-10 w-full rounded-full border border-black/10 bg-white px-4 text-sm outline-none transition focus:border-black/30"
+                  />
+                </div>
+                <p className="text-xs text-black/38">Key 和 Base URL 保存于本地浏览器，AI 请求直接从你的浏览器发出。</p>
               </div>
             )}
 

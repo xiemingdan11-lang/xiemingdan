@@ -111,20 +111,28 @@ export async function POST(request: Request) {
       imageUrl?: string;
       skill?: "full" | "simplified" | null;
       apiKey?: string;
+      getImageOnly?: boolean;
     };
 
     const { imageUrl, skill } = body;
-    // 优先使用前端传来的 API Key，其次使用环境变量
-    const apiKey = body.apiKey?.trim() || process.env.RELAY_API_KEY || process.env.QWEN_API_KEY || process.env.DEEPSEEK_API_KEY || "";
 
-    if (!apiKey.trim()) {
-      return NextResponse.json({ error: "请提供 DeepSeek API Key（在界面设置或 Vercel 环境变量 DEEPSEEK_API_KEY）" }, { status: 400 });
-    }
     if (!imageUrl) {
       return NextResponse.json({ error: "缺少图片地址" }, { status: 400 });
     }
 
     const { base64, mimeType } = await getImageBase64(imageUrl);
+
+    // 仅返回图片数据（供浏览器端直接调用 AI API）
+    if (body.getImageOnly) {
+      return NextResponse.json({ ok: true, base64, mimeType });
+    }
+
+    // 优先使用前端传来的 API Key，其次使用环境变量
+    const apiKey = body.apiKey?.trim() || process.env.RELAY_API_KEY || process.env.QWEN_API_KEY || process.env.DEEPSEEK_API_KEY || "";
+
+    if (!apiKey.trim()) {
+      return NextResponse.json({ error: "请提供 API Key（在界面设置或 Vercel 配置 RELAY_API_KEY）" }, { status: 400 });
+    }
 
     const systemPrompt = skill === "full" ? SKILL_FULL : skill === "simplified" ? SKILL_SIMPLIFIED : DEFAULT_PROMPT;
 
