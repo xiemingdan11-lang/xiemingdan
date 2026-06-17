@@ -128,6 +128,15 @@ const SKILLS: Record<SkillKey, { label: string; desc: string }> = {
   simplified: { label: "反推-简化版", desc: "适用于豆包/可灵" }
 };
 
+type FilterKey = "no_person" | "no_sticker" | "no_product" | "bg_only";
+
+const FILTERS: Record<FilterKey, { label: string; instruction: string }> = {
+  no_person:  { label: "不要人物",  instruction: "提示词中不得包含任何人物、人体、面部、手部描述，完全去除主播或人物元素。" },
+  no_sticker: { label: "不要贴片",  instruction: "提示词中不得包含任何文字贴片、字幕、价格标签、促销角标、UI元素描述。" },
+  no_product: { label: "不要产品",  instruction: "提示词中不得包含任何商品、产品、货品描述。" },
+  bg_only:    { label: "只输出背景", instruction: "只描述和输出背景环境、布景、灯光、色调，完全忽略前景人物、产品和文字。" }
+};
+
 const emptyRoom = (): LiveRoom => ({
   id: `room-${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 8)}`,
   name: "新直播间",
@@ -157,6 +166,7 @@ export default function HomePage() {
   const [apiBaseUrl, setApiBaseUrl] = useState(DEFAULT_API_BASE);
   const [showApiInput, setShowApiInput] = useState(false);
   const [activeSkill, setActiveSkill] = useState<SkillKey | null>(null);
+  const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(new Set());
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState("");
   const [analysisError, setAnalysisError] = useState("");
@@ -336,7 +346,9 @@ export default function HomePage() {
       }
 
       // Step 2: 直接从浏览器调用 AI（绕过 Vercel 地区限制）
-      const systemPrompt = activeSkill === "full" ? PROMPT_FULL : activeSkill === "simplified" ? PROMPT_SIMPLIFIED : PROMPT_DEFAULT;
+      const basePrompt = activeSkill === "full" ? PROMPT_FULL : activeSkill === "simplified" ? PROMPT_SIMPLIFIED : PROMPT_DEFAULT;
+      const filterInstructions = [...activeFilters].map((k) => FILTERS[k].instruction).join("\n");
+      const systemPrompt = filterInstructions ? `${basePrompt}\n\n【额外限制，必须严格遵守】\n${filterInstructions}` : basePrompt;
       const base = (apiBaseUrl || DEFAULT_API_BASE).replace(/\/$/, "");
       const aiRes = await fetch(`${base}/v1/chat/completions`, {
         method: "POST",
@@ -394,6 +406,14 @@ export default function HomePage() {
   };
 
   const toggleSkill = (key: SkillKey) => setActiveSkill((prev) => (prev === key ? null : key));
+
+  const toggleFilter = (key: FilterKey) => {
+    setActiveFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
 
   return (
     <main className="min-h-screen bg-[#e7e7e4] text-[#111111]">
@@ -547,6 +567,7 @@ export default function HomePage() {
           apiBaseUrl={apiBaseUrl}
           showApiInput={showApiInput}
           activeSkill={activeSkill}
+          activeFilters={activeFilters}
           analyzing={analyzing}
           analysisResult={analysisResult}
           analysisError={analysisError}
@@ -556,6 +577,7 @@ export default function HomePage() {
           onSaveApiKey={saveApiKey}
           onSaveApiBaseUrl={saveApiBaseUrl}
           onToggleSkill={toggleSkill}
+          onToggleFilter={toggleFilter}
           onAnalyze={runAnalysis}
           onCopy={copyResult}
         />
@@ -572,6 +594,7 @@ function AnalysisModal({
   apiBaseUrl,
   showApiInput,
   activeSkill,
+  activeFilters,
   analyzing,
   analysisResult,
   analysisError,
@@ -581,6 +604,7 @@ function AnalysisModal({
   onSaveApiKey,
   onSaveApiBaseUrl,
   onToggleSkill,
+  onToggleFilter,
   onAnalyze,
   onCopy
 }: {
@@ -589,6 +613,7 @@ function AnalysisModal({
   apiBaseUrl: string;
   showApiInput: boolean;
   activeSkill: SkillKey | null;
+  activeFilters: Set<FilterKey>;
   analyzing: boolean;
   analysisResult: string;
   analysisError: string;
@@ -598,6 +623,7 @@ function AnalysisModal({
   onSaveApiKey: (v: string) => void;
   onSaveApiBaseUrl: (v: string) => void;
   onToggleSkill: (k: SkillKey) => void;
+  onToggleFilter: (k: FilterKey) => void;
   onAnalyze: () => void;
   onCopy: () => void;
 }) {
@@ -705,6 +731,26 @@ function AnalysisModal({
                 {activeSkill === null && (
                   <span className="flex items-center px-1 text-xs text-black/38">默认：提取生图关键词</span>
                 )}
+              </div>
+            </div>
+
+            {/* Filter toggles */}
+            <div>
+              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-black/42">内容过滤（可多选）</div>
+              <div className="flex flex-wrap gap-2">
+                {(Object.entries(FILTERS) as [FilterKey, { label: string; instruction: string }][]).map(([key, filter]) => {
+                  const active = activeFilters.has(key);
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => onToggleFilter(key)}
+                      className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition ${active ? "border-[#e05a2b] bg-[#e05a2b] text-white" : "border-black/10 bg-[#f4f4f1] text-black hover:border-black/20"}`}
+                    >
+                      {active && <Check className="h-3 w-3" />}
+                      {filter.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
