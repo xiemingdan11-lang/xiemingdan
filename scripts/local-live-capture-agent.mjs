@@ -114,6 +114,11 @@ async function withBrowser(fn) {
 async function prepareLivePage(page, url) {
   await page.setViewportSize(VIEWPORT).catch(() => undefined);
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  await prepareCurrentPage(page);
+}
+
+async function prepareCurrentPage(page) {
+  await page.setViewportSize(VIEWPORT).catch(() => undefined);
   await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => undefined);
   await page.waitForTimeout(4000);
   await page.keyboard.press("KeyB").catch(() => undefined);
@@ -202,6 +207,54 @@ function makePortraitClip(box) {
   };
 }
 
+function isSearchPreview(state) {
+  const url = state.url || "";
+  return /douyin\.com\/search\//i.test(url) || (!/live\.douyin\.com/i.test(url) && /type=live/i.test(url));
+}
+
+async function clickLargestLivePreview(page) {
+  const point = await page.evaluate(() => {
+    const candidates = Array.from(document.querySelectorAll("video, canvas"))
+      .map((el) => {
+        const rect = el.getBoundingClientRect();
+        return {
+          x: rect.x + rect.width / 2,
+          y: rect.y + rect.height / 2,
+          width: rect.width,
+          height: rect.height,
+          area: rect.width * rect.height
+        };
+      })
+      .filter((rect) => rect.width > 220 && rect.height > 220)
+      .sort((a, b) => b.area - a.area);
+    return candidates[0] || null;
+  });
+
+  if (!point) return false;
+  await page.mouse.click(Math.floor(point.x), Math.floor(point.y)).catch(() => undefined);
+  return true;
+}
+
+async function enterLiveRoomFromPreview(page) {
+  let state = await readLiveState(page);
+  if (!isSearchPreview(state)) return state;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await page.keyboard.press("KeyF").catch(() => undefined);
+    await page.waitForTimeout(2500);
+    state = await readLiveState(page);
+    if (!isSearchPreview(state)) break;
+
+    await clickLargestLivePreview(page);
+    await page.waitForTimeout(2500);
+    state = await readLiveState(page);
+    if (!isSearchPreview(state)) break;
+  }
+
+  await prepareCurrentPage(page);
+  return readLiveState(page);
+}
+
 async function captureRoom(room) {
   return withBrowser(async (context) => {
     const page = await context.newPage();
@@ -280,7 +333,7 @@ async function searchAndCapture(command) {
         try {
           console.log(`[${new Date().toLocaleString()}] check candidate ${index + 1}/${candidates.length}: ${candidate.title}`);
           await prepareLivePage(livePage, candidate.url);
-          const state = await readLiveState(livePage);
+          const state = await enterLiveRoomFromPreview(livePage);
           if (state.blocked || !state.looksLive) {
             console.log(`[${new Date().toLocaleString()}] skip non-live: ${candidate.url}`);
             continue;
