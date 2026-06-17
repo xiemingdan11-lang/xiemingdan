@@ -115,7 +115,7 @@ export async function POST(request: Request) {
 
     const { imageUrl, skill } = body;
     // 优先使用环境变量中的 API Key，其次使用前端传来的
-    const apiKey = process.env.QWEN_API_KEY || process.env.DEEPSEEK_API_KEY || body.apiKey || "";
+    const apiKey = process.env.RELAY_API_KEY || process.env.QWEN_API_KEY || process.env.DEEPSEEK_API_KEY || body.apiKey || "";
 
     if (!apiKey.trim()) {
       return NextResponse.json({ error: "请提供 DeepSeek API Key（在界面设置或 Vercel 环境变量 DEEPSEEK_API_KEY）" }, { status: 400 });
@@ -128,14 +128,14 @@ export async function POST(request: Request) {
 
     const systemPrompt = skill === "full" ? SKILL_FULL : skill === "simplified" ? SKILL_SIMPLIFIED : DEFAULT_PROMPT;
 
-    const response = await fetch("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", {
+    const response = await fetch("https://aidraw365.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey.trim()}`
       },
       body: JSON.stringify({
-        model: "qwen-vl-plus",
+        model: "gpt-4o",
         messages: [
           { role: "system", content: systemPrompt },
           {
