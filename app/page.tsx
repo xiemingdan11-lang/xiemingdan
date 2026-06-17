@@ -541,7 +541,7 @@ function AnalysisModal({
             {/* API Key input (collapsible) */}
             {showApiInput && (
               <div className="rounded-2xl border border-black/10 bg-[#f7f7f5] p-4">
-                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-black/42">DeepSeek API Key</div>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-black/42">通义千问 API Key</div>
                 <div className="flex gap-2">
                   <input
                     ref={apiInputRef}
@@ -552,7 +552,7 @@ function AnalysisModal({
                     className="h-10 flex-1 rounded-full border border-black/10 bg-white px-4 text-sm outline-none transition focus:border-black/30"
                   />
                 </div>
-                <p className="mt-2 text-xs text-black/38">保存于本地，不会上传。也可在 Vercel 配置 DEEPSEEK_API_KEY 环境变量。</p>
+                <p className="mt-2 text-xs text-black/38">保存于本地，不会上传。也可在 Vercel 配置 QWEN_API_KEY 环境变量。</p>
               </div>
             )}
 
