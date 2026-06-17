@@ -128,7 +128,7 @@ export async function POST(request: Request) {
 
     const systemPrompt = skill === "full" ? SKILL_FULL : skill === "simplified" ? SKILL_SIMPLIFIED : DEFAULT_PROMPT;
 
-    const response = await fetch("https://api.gpt-best.com/v1/chat/completions", {
+    const response = await fetch("https://ai.comfly.org/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
