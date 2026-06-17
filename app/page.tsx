@@ -910,6 +910,11 @@ function ShotCard({ shot, index, onDelete, onAnalyze }: { shot: LiveShot; index:
             <Clock className="h-3.5 w-3.5" />
             {formatDate(shot.capturedAt)}
           </div>
+          {shotAuthorName(shot) && (
+            <div className={`mt-1 truncate text-xs ${dark ? "text-white/38" : "text-black/38"}`}>
+              {shotAuthorName(shot)}
+            </div>
+          )}
         </div>
         <a href={shot.imageUrl} target="_blank" rel="noreferrer" className={`grid h-10 w-10 shrink-0 place-items-center rounded-full transition ${dark ? "bg-white text-black hover:bg-[#64e994]" : "bg-[#111111] text-white hover:bg-[#64e994] hover:text-black"}`}>
           <ExternalLink className="h-4 w-4" />
@@ -985,13 +990,16 @@ function shotDisplayName(shot: LiveShot): string {
     const kw = inferKeyword(shot);
     return kw !== "未分类" ? kw + " 直播间" : "直播间";
   }
-  // 提取账号名：roomName 格式常为"账号名·直播标题"，取·前部分
+  return name;
+}
+
+// 提取账号/店铺名：取 roomName 中 "·" 前的部分
+function shotAuthorName(shot: LiveShot): string {
+  const name = shot.roomName?.trim() || "";
+  if (!name || BADGE_TEXTS.has(name)) return "";
   const dotIdx = name.indexOf("·");
   if (dotIdx > 0) return name.slice(0, dotIdx).trim();
-  // 也兼容英文冒号 / 空格后缀如"账号名 直播间"
-  const spaceIdx = name.indexOf(" ");
-  if (spaceIdx > 0) return name.slice(0, spaceIdx).trim();
-  return name;
+  return "";
 }
 
 function normalizeKey(value: string) {
