@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AlarmClock,
   Check,
   Clock,
   Copy,
@@ -49,6 +50,15 @@ type SkillKey = "full" | "simplified";
 const ALL_GROUP = "__all__";
 const CAPTURE_LIMIT_OPTIONS = [4, 8, 12, 20];
 const LS_API_KEY = "deepseek_api_key";
+const LS_SCHEDULED_TASKS = "live_scheduled_tasks";
+
+type ScheduledTask = {
+  id: string;
+  keyword: string;
+  time: string; // "HH:MM"
+  limit: number;
+  enabled: boolean;
+};
 const LS_API_BASE = "relay_api_base";
 const DEFAULT_API_BASE = "https://ai.comfly.org";
 
@@ -160,6 +170,7 @@ export default function HomePage() {
   const [agentingId, setAgentingId] = useState("");
   const [toast, setToast] = useState("");
   const [lastTask, setLastTask] = useState("");
+  const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
 
   // ── Analysis modal ──────────────────────────────────────────────────────────
   const [selectedShot, setSelectedShot] = useState<LiveShot | null>(null);
@@ -185,7 +196,29 @@ export default function HomePage() {
     if (typeof window !== "undefined") {
       setApiKey(localStorage.getItem(LS_API_KEY) || "");
       setApiBaseUrl(localStorage.getItem(LS_API_BASE) || DEFAULT_API_BASE);
+      const saved = localStorage.getItem(LS_SCHEDULED_TASKS);
+      if (saved) setScheduledTasks(JSON.parse(saved));
     }
+  }, []);
+
+  // 每分钟检查定时任务
+  useEffect(() => {
+    const tick = () => {
+      if (typeof window === "undefined") return;
+      const tasks: ScheduledTask[] = JSON.parse(localStorage.getItem(LS_SCHEDULED_TASKS) || "[]");
+      const now = new Date();
+      const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      tasks.filter((t) => t.enabled && t.keyword.trim() && t.time === hhmm).forEach((t) => {
+        fetch("/api/live/agent/commands", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "search-capture", keyword: t.keyword.trim(), limit: t.limit })
+        });
+        showToast(`定时任务「${t.keyword}」已触发`);
+      });
+    };
+    const id = setInterval(tick, 60_000);
+    return () => clearInterval(id);
   }, []);
 
   useEffect(() => {
@@ -418,6 +451,21 @@ export default function HomePage() {
     });
   };
 
+  const saveScheduledTasks = (tasks: ScheduledTask[]) => {
+    setScheduledTasks(tasks);
+    if (typeof window !== "undefined") localStorage.setItem(LS_SCHEDULED_TASKS, JSON.stringify(tasks));
+  };
+
+  const addScheduledTask = () => {
+    const task: ScheduledTask = { id: Date.now().toString(), keyword: "", time: "09:00", limit: 4, enabled: true };
+    saveScheduledTasks([...scheduledTasks, task]);
+  };
+
+  const removeScheduledTask = (id: string) => saveScheduledTasks(scheduledTasks.filter((t) => t.id !== id));
+
+  const patchScheduledTask = (id: string, patch: Partial<ScheduledTask>) =>
+    saveScheduledTasks(scheduledTasks.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+
   return (
     <main className="min-h-screen bg-[#e7e7e4] text-[#111111]">
       <header className="border-b border-black/10 bg-[#eeeeeb]/90 backdrop-blur">
@@ -431,84 +479,42 @@ export default function HomePage() {
               <h1 className="text-xl font-semibold tracking-[-0.03em]">直播竖版截图库</h1>
             </div>
           </div>
-          <div className="hidden items-center gap-6 text-xs font-medium text-black/55 md:flex">
-            <span>{groups.length} 个分类</span>
-            <span>{publishedShots.length} 张竖版图</span>
-            <span>{failedCount} 次失败</span>
-          </div>
           <div className="flex shrink-0 items-center gap-2">
             <ActionButton icon={RefreshCw} label="刷新" onClick={refresh} />
-            <ActionButton icon={Plus} label="新增直播间" onClick={addRoom} />
-            <ActionButton icon={Save} label={saving ? "保存中" : "保存"} onClick={saveRooms} dark />
           </div>
         </div>
       </header>
 
-      <div className="mx-auto max-w-[1640px] px-8 py-8">
-        <section className="grid gap-5 lg:grid-cols-[1.12fr_0.88fr]">
-          <div className="rounded-[28px] bg-[#111111] p-6 text-white shadow-[0_28px_70px_rgba(0,0,0,0.22)]">
-            <div className="flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
-              <div className="max-w-[720px]">
-                <div className="mb-4 inline-flex rounded-full border border-white/18 px-3 py-1 text-xs text-white/72">SCREENSHOT BOARD</div>
-                <h2 className="max-w-[760px] text-5xl font-semibold leading-[0.94] tracking-[-0.07em] md:text-7xl">
-                  Capture live rooms into polished portrait cards
-                </h2>
-              </div>
-              <div className="grid min-w-[240px] grid-cols-3 overflow-hidden rounded-[22px] border border-white/10">
-                <Stat label="分类" value={groups.length} />
-                <Stat label="截图" value={publishedShots.length} />
-                <Stat label="失败" value={failedCount} />
-              </div>
+      <div className="mx-auto max-w-[1920px] px-4 py-4">
+        {/* Quick Capture bar */}
+        <div className="mb-4 rounded-[20px] bg-white px-5 py-4 shadow-[0_4px_20px_rgba(0,0,0,0.06)]">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="shrink-0 text-sm font-semibold">快速抓取</span>
+            <input
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+              onKeyDown={(event) => event.key === "Enter" && searchLives()}
+              placeholder="输入关键词，例如：好奇"
+              className="h-10 flex-1 rounded-full border border-black/10 bg-[#f4f4f1] px-4 text-sm outline-none transition placeholder:text-black/35 focus:border-black/30"
+            />
+            <div className="flex items-center gap-1.5">
+              {CAPTURE_LIMIT_OPTIONS.map((n) => (
+                <button key={n} onClick={() => setCaptureLimit(n)}
+                  className={`h-8 min-w-[2rem] rounded-full border px-2.5 text-sm font-medium transition ${captureLimit === n ? "border-[#111111] bg-[#111111] text-white" : "border-black/10 bg-[#f4f4f1] text-black hover:border-black/20"}`}>
+                  {n}
+                </button>
+              ))}
             </div>
+            <button onClick={searchLives} disabled={searching}
+              className="inline-flex h-10 items-center gap-2 rounded-full bg-[#111111] px-5 text-sm font-semibold text-white transition hover:bg-[#333] disabled:opacity-50">
+              {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              {searching ? "发送中" : "抓取"}
+            </button>
           </div>
+          {lastTask && <div className="mt-3 rounded-xl bg-[#64e994] px-4 py-2 text-sm font-medium text-black">{lastTask}</div>}
+        </div>
 
-          <div className="rounded-[28px] bg-white p-5 shadow-[0_20px_60px_rgba(0,0,0,0.08)]">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-black/38">Quick Capture</div>
-                <h3 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">抓取多个直播间</h3>
-              </div>
-              <div className="grid h-10 w-10 place-items-center rounded-full bg-[#64e994] text-black">
-                <Search className="h-5 w-5" />
-              </div>
-            </div>
-            <div className="grid gap-3">
-              <div className="grid grid-cols-[1fr_auto] gap-2">
-                <input
-                  value={keyword}
-                  onChange={(event) => setKeyword(event.target.value)}
-                  onKeyDown={(event) => event.key === "Enter" && searchLives()}
-                  placeholder="例如：好奇"
-                  className="h-12 rounded-full border border-black/10 bg-[#f4f4f1] px-5 text-sm outline-none transition placeholder:text-black/35 focus:border-black/30"
-                />
-                <ActionButton icon={searching ? Loader2 : Search} label={searching ? "发送中" : "抓取"} onClick={searchLives} dark />
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-black/38">抓取数量：</span>
-                {CAPTURE_LIMIT_OPTIONS.map((n) => (
-                  <button
-                    key={n}
-                    onClick={() => setCaptureLimit(n)}
-                    className={`h-8 min-w-[2.5rem] rounded-full border px-3 text-sm font-medium transition ${captureLimit === n ? "border-[#111111] bg-[#111111] text-white" : "border-black/10 bg-[#f4f4f1] text-black hover:border-black/20"}`}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
-              {activeRoom && (
-                <div className="grid grid-cols-[1fr_auto] gap-2">
-                  <select value={activeRoom.id} onChange={(event) => setActiveRoomId(event.target.value)} className="h-12 rounded-full border border-black/10 bg-[#f4f4f1] px-5 text-sm outline-none transition focus:border-black/30">
-                    {rooms.map((room) => <option key={room.id} value={room.id}>{room.name}</option>)}
-                  </select>
-                  <ActionButton icon={agentingId === activeRoom.id ? Loader2 : Radio} label={agentingId === activeRoom.id ? "通知中" : "固定截图"} onClick={() => queueAgentCapture(activeRoom.id)} />
-                </div>
-              )}
-              {lastTask && <div className="rounded-2xl bg-[#64e994] px-4 py-3 text-sm font-medium text-black">{lastTask}</div>}
-            </div>
-          </div>
-        </section>
-
-        <div className="my-8 flex flex-wrap items-center gap-2">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
           <GroupPill label="全部" count={publishedShots.length} active={activeGroup === ALL_GROUP} onClick={() => setActiveGroup(ALL_GROUP)} />
           {groups.map((group) => (
             <GroupPill key={group.key} label={group.label} count={group.shots.length} active={activeGroup === group.key} onClick={() => setActiveGroup(group.key)} />
@@ -544,33 +550,65 @@ export default function HomePage() {
           </section>
         )}
 
-        {activeRoom && (
-          <section className="mt-8 rounded-[28px] bg-white p-5 shadow-[0_20px_60px_rgba(0,0,0,0.07)]">
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-black/38">Room Settings</div>
-                <h3 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">固定直播间设置</h3>
+        {/* Scheduled Tasks */}
+        <section className="mt-6 rounded-[20px] bg-white p-5 shadow-[0_4px_20px_rgba(0,0,0,0.06)]">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="grid h-8 w-8 place-items-center rounded-full bg-[#111111] text-[#64e994]">
+                <AlarmClock className="h-4 w-4" />
               </div>
-              <button onClick={() => removeRoom(activeRoom.id)} className="grid h-10 w-10 place-items-center rounded-full border border-black/10 bg-[#f4f4f1] text-black transition hover:bg-[#111111] hover:text-white">
-                <Trash2 className="h-4 w-4" />
-              </button>
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-black/38">Scheduled</div>
+                <h3 className="text-base font-semibold tracking-[-0.03em]">每日定时抓取</h3>
+              </div>
             </div>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <Field label="名称" value={activeRoom.name} onChange={(value) => patchRoom(activeRoom.id, { name: value })} />
-              <Field label="直播间链接" value={activeRoom.url} onChange={(value) => patchRoom(activeRoom.id, { url: value })} />
-              <Field label="发布时间" type="time" value={activeRoom.publishTime} onChange={(value) => patchRoom(activeRoom.id, { publishTime: value })} />
-              <label className="block">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-black/42">启用</span>
-                <button onClick={() => patchRoom(activeRoom.id, { enabled: !activeRoom.enabled })} className={`h-12 w-full rounded-full border text-sm font-semibold transition ${activeRoom.enabled ? "border-[#64e994] bg-[#64e994] text-black" : "border-black/10 bg-[#f4f4f1] text-black/58"}`}>
-                  {activeRoom.enabled ? "开启" : "关闭"}
-                </button>
-              </label>
+            <button onClick={addScheduledTask}
+              className="inline-flex h-9 items-center gap-1.5 rounded-full border border-black/10 bg-[#f4f4f1] px-4 text-sm font-medium text-black transition hover:bg-[#111111] hover:text-white">
+              <Plus className="h-3.5 w-3.5" />新增任务
+            </button>
+          </div>
+          {scheduledTasks.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-black/15 py-6 text-center text-sm text-black/38">
+              暂无定时任务 · 点击「新增任务」设置每日自动抓取时间
             </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {activeRoom.url && <a href={activeRoom.url} target="_blank" rel="noreferrer" className="inline-flex h-11 items-center gap-2 rounded-full border border-black/10 bg-[#f4f4f1] px-4 text-sm font-medium text-black transition hover:bg-[#111111] hover:text-white"><ExternalLink className="h-4 w-4" />打开直播间</a>}
+          ) : (
+            <div className="grid gap-2">
+              {scheduledTasks.map((task) => (
+                <div key={task.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-black/8 bg-[#f9f9f7] px-4 py-3">
+                  <input
+                    value={task.keyword}
+                    onChange={(e) => patchScheduledTask(task.id, { keyword: e.target.value })}
+                    placeholder="关键词，例如：好奇"
+                    className="h-9 flex-1 rounded-full border border-black/10 bg-white px-3 text-sm outline-none focus:border-black/30"
+                  />
+                  <input
+                    type="time"
+                    value={task.time}
+                    onChange={(e) => patchScheduledTask(task.id, { time: e.target.value })}
+                    className="h-9 rounded-full border border-black/10 bg-white px-3 text-sm outline-none focus:border-black/30"
+                  />
+                  <div className="flex items-center gap-1">
+                    {CAPTURE_LIMIT_OPTIONS.map((n) => (
+                      <button key={n} onClick={() => patchScheduledTask(task.id, { limit: n })}
+                        className={`h-7 min-w-[1.8rem] rounded-full border px-2 text-xs font-medium transition ${task.limit === n ? "border-[#111111] bg-[#111111] text-white" : "border-black/10 bg-white text-black hover:border-black/20"}`}>
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                  <button onClick={() => patchScheduledTask(task.id, { enabled: !task.enabled })}
+                    className={`h-9 rounded-full border px-4 text-sm font-semibold transition ${task.enabled ? "border-[#64e994] bg-[#64e994] text-black" : "border-black/10 bg-white text-black/42"}`}>
+                    {task.enabled ? "开启" : "关闭"}
+                  </button>
+                  <button onClick={() => removeScheduledTask(task.id)}
+                    className="grid h-9 w-9 place-items-center rounded-full border border-black/10 bg-white text-black/42 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
             </div>
-          </section>
-        )}
+          )}
+          <p className="mt-3 text-xs text-black/32">定时任务在页面打开时有效 · 到达设定时间后自动向共享电脑发送截图指令</p>
+        </section>
       </div>
 
       {toast && <div className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-full bg-[#111111] px-5 py-3 text-sm font-medium text-white shadow-2xl">{toast}</div>}
