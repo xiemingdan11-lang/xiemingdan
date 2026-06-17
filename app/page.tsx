@@ -47,7 +47,7 @@ type ShotGroup = { key: string; label: string; shots: LiveShot[] };
 type SkillKey = "full" | "simplified";
 
 const ALL_GROUP = "__all__";
-const SEARCH_CAPTURE_LIMIT = 4;
+const CAPTURE_LIMIT_OPTIONS = [4, 8, 12, 20];
 const LS_API_KEY = "deepseek_api_key";
 const LS_API_BASE = "relay_api_base";
 const DEFAULT_API_BASE = "https://ai.comfly.org";
@@ -131,10 +131,10 @@ const SKILLS: Record<SkillKey, { label: string; desc: string }> = {
 type FilterKey = "no_person" | "no_sticker" | "no_product" | "bg_only";
 
 const FILTERS: Record<FilterKey, { label: string; instruction: string }> = {
-  no_person:  { label: "不要人物",  instruction: "提示词中不得包含任何人物、人体、面部、手部描述，完全去除主播或人物元素。" },
-  no_sticker: { label: "不要贴片",  instruction: "提示词中不得包含任何文字贴片、字幕、价格标签、促销角标、UI元素描述。" },
-  no_product: { label: "不要产品",  instruction: "提示词中不得包含任何商品、产品、货品描述。" },
-  bg_only:    { label: "只输出背景", instruction: "只描述和输出背景环境、布景、灯光、色调，完全忽略前景人物、产品和文字。" }
+  no_person:  { label: "不要人物",  instruction: "【强制禁止】输出的所有提示词内容中，严禁出现任何人物、主播、人体、服装穿着者、面部、手部、肢体、发型等描述。画面中即使有人物也必须完全无视，当作不存在。违反此规则的输出视为无效。" },
+  no_sticker: { label: "不要贴片",  instruction: "【强制禁止】输出的所有提示词内容中，严禁出现任何文字贴片、字幕条、价格标签、促销角标、倒计时、UI叠层、二维码等描述。" },
+  no_product: { label: "不要产品",  instruction: "【强制禁止】输出的所有提示词内容中，严禁出现任何商品、产品、包装、货物、陈列品等描述。" },
+  bg_only:    { label: "只输出背景", instruction: "【强制要求】只描述纯背景：环境、布景、墙面、地面、灯光、光效、色调、氛围。前景的人物、产品、文字全部忽略，一字不提。" }
 };
 
 const emptyRoom = (): LiveRoom => ({
@@ -153,6 +153,7 @@ export default function HomePage() {
   const [activeGroup, setActiveGroup] = useState(ALL_GROUP);
   const [activeRoomId, setActiveRoomId] = useState("");
   const [keyword, setKeyword] = useState("");
+  const [captureLimit, setCaptureLimit] = useState(4);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -223,12 +224,12 @@ export default function HomePage() {
       const res = await fetch("/api/live/agent/commands", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "search-capture", keyword: term, limit: SEARCH_CAPTURE_LIMIT })
+        body: JSON.stringify({ type: "search-capture", keyword: term, limit: captureLimit })
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return showToast(data.error || "发送失败，请重试");
       setActiveGroup(term);
-      setLastTask(`已发送「${term}」竖版截图任务，默认抓取 ${SEARCH_CAPTURE_LIMIT} 个相关直播间。`);
+      setLastTask(`已发送「${term}」竖版截图任务，抓取 ${captureLimit} 个相关直播间。`);
       showToast("任务已发送给共享电脑");
       window.setTimeout(refresh, 5000);
     } finally {
@@ -348,7 +349,9 @@ export default function HomePage() {
       // Step 2: 直接从浏览器调用 AI（绕过 Vercel 地区限制）
       const basePrompt = activeSkill === "full" ? PROMPT_FULL : activeSkill === "simplified" ? PROMPT_SIMPLIFIED : PROMPT_DEFAULT;
       const filterInstructions = [...activeFilters].map((k) => FILTERS[k].instruction).join("\n");
-      const systemPrompt = filterInstructions ? `${basePrompt}\n\n【额外限制，必须严格遵守】\n${filterInstructions}` : basePrompt;
+      const systemPrompt = filterInstructions
+        ? `以下规则具有最高优先级，优先于所有其他指令，必须严格执行：\n${filterInstructions}\n\n---\n\n${basePrompt}`
+        : basePrompt;
       const base = (apiBaseUrl || DEFAULT_API_BASE).replace(/\/$/, "");
       const aiRes = await fetch(`${base}/v1/chat/completions`, {
         method: "POST",
@@ -480,6 +483,18 @@ export default function HomePage() {
                 />
                 <ActionButton icon={searching ? Loader2 : Search} label={searching ? "发送中" : "抓取"} onClick={searchLives} dark />
               </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-black/38">抓取数量：</span>
+                {CAPTURE_LIMIT_OPTIONS.map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setCaptureLimit(n)}
+                    className={`h-8 min-w-[2.5rem] rounded-full border px-3 text-sm font-medium transition ${captureLimit === n ? "border-[#111111] bg-[#111111] text-white" : "border-black/10 bg-[#f4f4f1] text-black hover:border-black/20"}`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
               {activeRoom && (
                 <div className="grid grid-cols-[1fr_auto] gap-2">
                   <select value={activeRoom.id} onChange={(event) => setActiveRoomId(event.target.value)} className="h-12 rounded-full border border-black/10 bg-[#f4f4f1] px-5 text-sm outline-none transition focus:border-black/30">
@@ -508,7 +523,7 @@ export default function HomePage() {
         </div>
 
         {visibleShots.length ? (
-          <section className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-7">
+          <section className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
             {visibleShots.map((shot, index) => (
               <ShotCard
                 key={shot.id}
