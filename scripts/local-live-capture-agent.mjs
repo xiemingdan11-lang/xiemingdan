@@ -4,7 +4,8 @@ import { chromium } from "playwright";
 
 const serverUrl = process.env.LIVE_SERVER_URL || "http://124.222.223.153";
 const pollMs = Number(process.env.LIVE_CAPTURE_POLL_MS || 60_000);
-const storageState = process.env.LIVE_CAPTURE_STORAGE_STATE || path.join(process.cwd(), "secrets", "douyin-storage-state.json");
+const storageState =
+  process.env.LIVE_CAPTURE_STORAGE_STATE || path.join(process.cwd(), "secrets", "douyin-storage-state.json");
 const executablePath = process.env.LIVE_CAPTURE_CHROMIUM_EXECUTABLE || "";
 const cdpUrl = process.env.LIVE_CAPTURE_CDP_URL || "";
 const userDataDir = process.env.LIVE_CAPTURE_USER_DATA_DIR || "";
@@ -15,7 +16,36 @@ const onlyRoomId = process.env.LIVE_CAPTURE_ROOM_ID || "";
 const fired = new Set();
 const VIEWPORT = { width: 1080, height: 1920 };
 const PORTRAIT_RATIO = 9 / 16;
-const GENERIC_LIVE_TITLES = new Set(["live", "直播", "直播间", "正在直播"]);
+const SEARCH_MAX_LIMIT = 12;
+
+const CN = {
+  live: "\u76f4\u64ad",
+  liveRoom: "\u76f4\u64ad\u95f4",
+  liveNow: "\u76f4\u64ad\u4e2d",
+  living: "\u6b63\u5728\u76f4\u64ad",
+  verify: "\u9a8c\u8bc1",
+  verifyContinue: "\u9a8c\u8bc1\u540e\u7ee7\u7eed",
+  smsVerify: "\u77ed\u4fe1\u9a8c\u8bc1",
+  qrLogin: "\u626b\u7801\u767b\u5f55",
+  loginAfter: "\u767b\u5f55\u540e\u5373\u53ef",
+  ended: "\u76f4\u64ad\u5df2\u7ed3\u675f",
+  away: "\u4e3b\u64ad\u6682\u65f6\u79bb\u5f00",
+  notStarted: "\u6682\u672a\u5f00\u64ad",
+  noLive: "\u6682\u65e0\u76f4\u64ad",
+  follow: "\u4f60\u7684\u5173\u6ce8",
+  pressF: "\u70b9\u51fb\u6216\u6309F\u8fdb\u5165\u76f4\u64ad\u95f4"
+};
+
+const LIVE_HINT_RE = new RegExp(`${CN.liveNow}|${CN.living}|${CN.liveRoom}|${CN.live}|${CN.follow}`);
+const VERIFY_RE = new RegExp(`${CN.verifyContinue}|${CN.smsVerify}|${CN.verify}|${CN.qrLogin}|${CN.loginAfter}`);
+const END_RE = new RegExp(`${CN.ended}|${CN.away}|${CN.notStarted}|${CN.noLive}`);
+const ENTER_RE = new RegExp(CN.pressF);
+const GENERIC_LIVE_TITLES = new Set([
+  "live",
+  CN.live.toLowerCase(),
+  CN.liveRoom.toLowerCase(),
+  CN.living.toLowerCase()
+]);
 
 function todayKey(roomId, time) {
   const now = new Date();
@@ -35,6 +65,15 @@ function normalizeText(value) {
     .replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
+function makeTempRoom(id, name, url) {
+  return { id, name, url, publishTime: "", enabled: false, notes: "", createdAt: new Date().toISOString() };
+}
+
+function candidateId(keyword, index) {
+  const safe = keyword.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]+/gi, "-").slice(0, 28) || "keyword";
+  return `search-${safe}-${Date.now().toString(36)}-${index + 1}`;
+}
+
 function isSpecificLiveRoomUrl(value) {
   const url = String(value || "").toLowerCase();
   if (!url) return false;
@@ -47,15 +86,6 @@ function isGenericLiveTitle(value) {
   return GENERIC_LIVE_TITLES.has(String(value || "").trim().toLowerCase());
 }
 
-function makeTempRoom(id, name, url) {
-  return { id, name, url, publishTime: "", enabled: false, notes: "", createdAt: new Date().toISOString() };
-}
-
-function candidateId(keyword, index) {
-  const safe = keyword.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]+/gi, "-").slice(0, 28) || "keyword";
-  return `search-${safe}-${Date.now().toString(36)}-${index + 1}`;
-}
-
 async function getStore() {
   const res = await fetch(new URL("/api/live/rooms", serverUrl), { cache: "no-store" });
   if (!res.ok) throw new Error(`read rooms failed: ${res.status}`);
@@ -65,7 +95,7 @@ async function getStore() {
 async function uploadShot(room, bytes, message = "Local computer live screenshot upload.", keyword = "") {
   const form = new FormData();
   form.append("roomId", room.id);
-  form.append("roomName", room.name || "直播间截图");
+  form.append("roomName", room.name || "live shot");
   form.append("pageUrl", room.url || "");
   form.append("message", message);
   form.append("keyword", keyword);
@@ -94,7 +124,8 @@ async function finishCommand(id, status, error = "", resultCount) {
 async function withBrowser(fn) {
   if (cdpUrl) {
     const browser = await chromium.connectOverCDP(cdpUrl);
-    const context = browser.contexts()[0] || await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1 });
+    const context =
+      browser.contexts()[0] || (await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1 }));
     try {
       return await fn(context);
     } finally {
@@ -131,18 +162,12 @@ async function withBrowser(fn) {
   }
 }
 
-async function prepareLivePage(page, url) {
-  await page.setViewportSize(VIEWPORT).catch(() => undefined);
-  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60_000 });
-  await prepareCurrentPage(page);
-}
-
 async function prepareCurrentPage(page) {
   await page.setViewportSize(VIEWPORT).catch(() => undefined);
   await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => undefined);
-  await page.waitForTimeout(4000);
+  await page.waitForTimeout(2500);
   await page.keyboard.press("KeyB").catch(() => undefined);
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(500);
   await page.addStyleTag({
     content: `
       [class*="danmu" i], [class*="barrage" i], [class*="comment" i],
@@ -153,33 +178,44 @@ async function prepareCurrentPage(page) {
   }).catch(() => undefined);
 }
 
-async function readLiveState(page) {
-  return page.evaluate(() => {
-    const text = document.body?.innerText || "";
-    const url = location.href;
-    const title = document.title || "";
-    const videoCount = Array.from(document.querySelectorAll("video")).filter((video) => {
-      const rect = video.getBoundingClientRect();
-      return rect.width > 120 && rect.height > 120;
-    }).length;
-    const hasCanvas = Array.from(document.querySelectorAll("canvas")).some((canvas) => {
-      const rect = canvas.getBoundingClientRect();
-      return rect.width > 300 && rect.height > 300;
-    });
-    const blocked =
-      /验证码|验证后继续|短信验证|扫码登录|登录后即可/.test(`${title}\n${text}`) ||
-      /直播已结束|主播暂时离开|暂未开播|暂无直播/.test(text);
-    const looksLive =
-      videoCount > 0 ||
-      hasCanvas ||
-      /直播中|正在直播/.test(text) ||
-      /live\.douyin\.com/.test(url);
-    return { blocked, looksLive, videoCount, url, title, text: text.slice(0, 1000) };
-  });
+async function prepareLivePage(page, url) {
+  await page.setViewportSize(VIEWPORT).catch(() => undefined);
+  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  await prepareCurrentPage(page);
 }
 
-async function captureCleanLive(page) {
-  const videoBox = await page.evaluate(() => {
+async function readLiveState(page) {
+  return page.evaluate(
+    ({ verifyRe, endRe, liveHintRe, enterRe }) => {
+      const text = document.body?.innerText || "";
+      const url = location.href;
+      const title = document.title || "";
+      const merged = `${title}\n${text}`;
+      const videoCount = Array.from(document.querySelectorAll("video")).filter((video) => {
+        const rect = video.getBoundingClientRect();
+        return rect.width > 120 && rect.height > 120;
+      }).length;
+      const hasCanvas = Array.from(document.querySelectorAll("canvas")).some((canvas) => {
+        const rect = canvas.getBoundingClientRect();
+        return rect.width > 300 && rect.height > 300;
+      });
+      const blocked = new RegExp(verifyRe).test(merged);
+      const ended = new RegExp(endRe).test(text);
+      const looksLive = videoCount > 0 || hasCanvas || new RegExp(liveHintRe).test(text) || /live\.douyin\.com/.test(url);
+      const needsEnter = new RegExp(enterRe).test(text);
+      return { blocked, ended, looksLive, needsEnter, videoCount, hasCanvas, url, title, text: text.slice(0, 2000) };
+    },
+    {
+      verifyRe: VERIFY_RE.source,
+      endRe: END_RE.source,
+      liveHintRe: LIVE_HINT_RE.source,
+      enterRe: ENTER_RE.source
+    }
+  );
+}
+
+async function getLargestMediaRect(page) {
+  return page.evaluate(() => {
     const candidates = Array.from(document.querySelectorAll("video, canvas"))
       .map((el) => {
         const rect = el.getBoundingClientRect();
@@ -194,14 +230,6 @@ async function captureCleanLive(page) {
       .filter((rect) => rect.width > 200 && rect.height > 200)
       .sort((a, b) => b.area - a.area);
     return candidates[0] || null;
-  });
-
-  if (!videoBox) return page.screenshot({ fullPage: false, type: "jpeg", quality: 78 });
-  const clip = makePortraitClip(videoBox);
-  return page.screenshot({
-    type: "jpeg",
-    quality: 78,
-    clip
   });
 }
 
@@ -232,51 +260,38 @@ function makePortraitClip(box) {
   };
 }
 
-function isSearchPreview(state) {
-  const url = state.url || "";
-  return /douyin\.com\/search\//i.test(url) || (!/live\.douyin\.com/i.test(url) && /type=live/i.test(url));
-}
-
-async function clickLargestLivePreview(page) {
-  const point = await page.evaluate(() => {
-    const candidates = Array.from(document.querySelectorAll("video, canvas"))
-      .map((el) => {
-        const rect = el.getBoundingClientRect();
-        return {
-          x: rect.x + rect.width / 2,
-          y: rect.y + rect.height / 2,
-          width: rect.width,
-          height: rect.height,
-          area: rect.width * rect.height
-        };
-      })
-      .filter((rect) => rect.width > 220 && rect.height > 220)
-      .sort((a, b) => b.area - a.area);
-    return candidates[0] || null;
+async function captureCleanLive(page) {
+  const mediaRect = await getLargestMediaRect(page);
+  if (!mediaRect) return page.screenshot({ fullPage: false, type: "jpeg", quality: 80 });
+  return page.screenshot({
+    type: "jpeg",
+    quality: 80,
+    clip: makePortraitClip(mediaRect)
   });
-
-  if (!point) return false;
-  await page.mouse.click(Math.floor(point.x), Math.floor(point.y)).catch(() => undefined);
-  return true;
 }
 
-async function enterLiveRoomFromPreview(page) {
-  let state = await readLiveState(page);
-  if (!isSearchPreview(state)) return state;
+function isSearchPageUrl(url) {
+  return /douyin\.com\/search\//i.test(url) || /type=live/i.test(url);
+}
 
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+async function tryEnterLiveRoom(page) {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const state = await readLiveState(page);
+    if (!state.needsEnter && !isSearchPageUrl(state.url)) return state;
+
     await page.keyboard.press("KeyF").catch(() => undefined);
-    await page.waitForTimeout(2500);
-    state = await readLiveState(page);
-    if (!isSearchPreview(state)) break;
+    await page.waitForTimeout(1800);
 
-    await clickLargestLivePreview(page);
-    await page.waitForTimeout(2500);
-    state = await readLiveState(page);
-    if (!isSearchPreview(state)) break;
+    const mediaRect = await getLargestMediaRect(page);
+    if (mediaRect) {
+      const centerX = Math.floor(mediaRect.x + mediaRect.width / 2);
+      const centerY = Math.floor(mediaRect.y + mediaRect.height / 2);
+      await page.mouse.click(centerX, centerY).catch(() => undefined);
+      await page.waitForTimeout(1800);
+    }
+
+    await prepareCurrentPage(page);
   }
-
-  await prepareCurrentPage(page);
   return readLiveState(page);
 }
 
@@ -285,8 +300,10 @@ async function captureRoom(room) {
     const page = await context.newPage();
     try {
       await prepareLivePage(page, room.url);
-      const state = await readLiveState(page);
-      if (state.blocked || !state.looksLive) throw new Error("not a live room or needs verification");
+      const state = await tryEnterLiveRoom(page);
+      if (state.blocked || state.ended || !state.looksLive) {
+        throw new Error("not a valid live room or verification is required");
+      }
       return await captureCleanLive(page);
     } finally {
       await page.close().catch(() => undefined);
@@ -295,98 +312,118 @@ async function captureRoom(room) {
 }
 
 async function extractCandidates(page, keyword, limit) {
-  return page.evaluate(({ normalizedKeyword, max }) => {
-    const seen = new Set();
-    const items = [];
+  return page.evaluate(
+    ({ normalizedKeyword, max, liveHintRe }) => {
+      const seen = new Set();
+      const items = [];
 
-    function normalize(value) {
-      return String(value || "")
-        .toLowerCase()
-        .replace(/\s+/g, "")
-        .replace(/[^\p{L}\p{N}]+/gu, "");
-    }
-
-    function pickContainer(anchor) {
-      let node = anchor;
-      for (let depth = 0; depth < 6 && node; depth += 1) {
-        const text = (node.textContent || "").replace(/\s+/g, " ").trim();
-        if (text.length >= 6 && text.length <= 240) return text;
-        node = node.parentElement;
-      }
-      return (anchor.textContent || "").replace(/\s+/g, " ").trim();
-    }
-
-    for (const anchor of Array.from(document.querySelectorAll("a"))) {
-      const rawHref = anchor.getAttribute("href") || "";
-      const text = (anchor.textContent || "").replace(/\s+/g, " ").trim();
-      const cardText = pickContainer(anchor);
-      let url = "";
-      try {
-        url = new URL(rawHref, location.origin).toString();
-      } catch {
-        continue;
+      function normalize(value) {
+        return String(value || "")
+          .toLowerCase()
+          .replace(/\s+/g, "")
+          .replace(/[^\p{L}\p{N}]+/gu, "");
       }
 
-      const lowerUrl = url.toLowerCase();
-      const isNav =
-        lowerUrl.includes("/user/self") ||
-        lowerUrl.includes("/follow") ||
-        lowerUrl.includes("/friend") ||
-        lowerUrl.includes("/my") ||
-        lowerUrl.includes("/jingxuan") ||
-        lowerUrl.includes("/search/") ||
-        lowerUrl === "https://www.douyin.com/" ||
-        lowerUrl === "https://www.douyin.com";
-      const directLive = lowerUrl.includes("live.douyin.com") || /douyin\.com\/live\//.test(lowerUrl);
-      const liveCard = /直播中|正在直播|直播间|直播/.test(cardText || text);
-      const keywordMatched =
-        !normalizedKeyword ||
-        normalize(text).includes(normalizedKeyword) ||
-        normalize(cardText).includes(normalizedKeyword) ||
-        normalize(url).includes(normalizedKeyword);
-      if (isNav || (!directLive && !liveCard) || !keywordMatched || seen.has(url)) continue;
+      function isSpecificLiveUrl(url) {
+        return /live\.douyin\.com\/[^/?#]+/i.test(url) || /douyin\.com\/live\/[^/?#]+/i.test(url);
+      }
 
-      seen.add(url);
-      items.push({
-        title: (cardText || text).slice(0, 100) || "直播间候选",
-        rawText: text.slice(0, 100),
-        context: cardText.slice(0, 160),
-        url
-      });
-      if (items.length >= max) break;
+      function pickCard(anchor) {
+        let node = anchor;
+        let best = anchor;
+        for (let depth = 0; depth < 8 && node; depth += 1) {
+          const rect = node.getBoundingClientRect();
+          const text = (node.textContent || "").replace(/\s+/g, " ").trim();
+          if (rect.width > 280 && rect.height > 48 && text.length >= 8 && text.length <= 320) {
+            best = node;
+          }
+          node = node.parentElement;
+        }
+        return best;
+      }
+
+      function liveRoomKey(url) {
+        const match = String(url).match(/live\.douyin\.com\/([^/?#]+)/i) || String(url).match(/douyin\.com\/live\/([^/?#]+)/i);
+        return match?.[1] || url;
+      }
+
+      for (const anchor of Array.from(document.querySelectorAll("a[href]"))) {
+        const rawHref = anchor.getAttribute("href") || "";
+        let url = "";
+        try {
+          url = new URL(rawHref, location.origin).toString();
+        } catch {
+          continue;
+        }
+
+        if (!isSpecificLiveUrl(url)) continue;
+
+        const card = pickCard(anchor);
+        const rect = card.getBoundingClientRect();
+        const text = (anchor.textContent || "").replace(/\s+/g, " ").trim();
+        const cardText = (card.textContent || "").replace(/\s+/g, " ").trim();
+        const inMainColumn = rect.left < window.innerWidth * 0.78;
+        const inViewportBand = rect.top > 80 && rect.top < window.innerHeight * 3;
+        const keywordMatched =
+          !normalizedKeyword ||
+          normalize(text).includes(normalizedKeyword) ||
+          normalize(cardText).includes(normalizedKeyword) ||
+          normalize(url).includes(normalizedKeyword);
+        const liveMatched = new RegExp(liveHintRe).test(cardText) || new RegExp(liveHintRe).test(text);
+        const roomKey = liveRoomKey(url);
+        if (!inMainColumn || !inViewportBand || !keywordMatched || !liveMatched || seen.has(roomKey)) continue;
+
+        seen.add(roomKey);
+        items.push({
+          roomKey,
+          title: text.slice(0, 120) || cardText.slice(0, 120) || "live room",
+          context: cardText.slice(0, 240),
+          url,
+          top: rect.top,
+          left: rect.left
+        });
+      }
+
+      items.sort((a, b) => (a.top - b.top) || (a.left - b.left));
+      return items.slice(0, max);
+    },
+    {
+      normalizedKeyword: normalizeText(keyword),
+      max: limit,
+      liveHintRe: LIVE_HINT_RE.source
     }
-    return items;
-  }, { normalizedKeyword: normalizeText(keyword), max: limit });
+  );
 }
 
 async function searchAndCapture(command) {
   const keyword = (command.keyword || "").trim();
-  const limit = Math.max(1, Math.min(Number(command.limit || 6), 12));
+  const limit = Math.max(1, Math.min(Number(command.limit || 4), SEARCH_MAX_LIMIT));
   const normalizedKeyword = normalizeText(keyword);
   if (!keyword) throw new Error("keyword is required");
 
   return withBrowser(async (context) => {
-    const searchUrl = `https://www.douyin.com/search/${encodeURIComponent(keyword)}?type=live`;
     const page = await context.newPage();
-    console.log(`[${new Date().toLocaleString()}] search live keyword=${keyword}`);
+    const searchUrl = `https://www.douyin.com/search/${encodeURIComponent(keyword)}?type=live`;
+    console.log(`[${new Date().toLocaleString()}] search live keyword=${keyword}, limit=${limit}`);
+
     try {
       await page.setViewportSize(VIEWPORT).catch(() => undefined);
       await page.goto(searchUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
       await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => undefined);
-      await page.waitForTimeout(5000);
+      await page.waitForTimeout(3500);
 
       const searchState = await readLiveState(page);
       if (searchState.blocked) {
         throw new Error(`search page requires verification: ${searchState.title || searchState.url}`);
       }
 
-      for (let i = 0; i < 3; i += 1) {
-        await page.mouse.wheel(0, 900).catch(() => undefined);
-        await page.waitForTimeout(1000);
+      for (let i = 0; i < 4; i += 1) {
+        await page.mouse.wheel(0, 800).catch(() => undefined);
+        await page.waitForTimeout(900);
       }
 
-      const candidates = await extractCandidates(page, keyword, limit * 2);
-      console.log(`[${new Date().toLocaleString()}] found ${candidates.length} candidates`);
+      const candidates = await extractCandidates(page, keyword, limit * 3);
+      console.log(`[${new Date().toLocaleString()}] matched ${candidates.length} live candidates`);
       if (!candidates.length) {
         throw new Error(`no matched live candidates found for keyword "${keyword}"`);
       }
@@ -396,14 +433,24 @@ async function searchAndCapture(command) {
         if (uploaded >= limit) break;
         const livePage = await context.newPage();
         try {
-          console.log(`[${new Date().toLocaleString()}] check candidate ${index + 1}/${candidates.length}: ${candidate.title}`);
+          console.log(
+            `[${new Date().toLocaleString()}] candidate ${index + 1}/${candidates.length}: ${candidate.title} -> ${candidate.url}`
+          );
           await prepareLivePage(livePage, candidate.url);
-          const state = await enterLiveRoomFromPreview(livePage);
-          const matchedTitle = normalizeText(candidate.title).includes(normalizedKeyword);
-          const matchedPage = normalizeText(`${state.title}\n${state.text}`).includes(normalizedKeyword);
+          const state = await tryEnterLiveRoom(livePage);
+          const titleMatched = normalizeText(candidate.title).includes(normalizedKeyword);
+          const pageMatched = normalizeText(`${state.title}\n${state.text}`).includes(normalizedKeyword);
           const specificRoom = isSpecificLiveRoomUrl(state.url || candidate.url);
-          if (state.blocked || !state.looksLive || !specificRoom || (!matchedTitle && !matchedPage) || isGenericLiveTitle(candidate.title)) {
-            console.log(`[${new Date().toLocaleString()}] skip candidate: ${candidate.url}`);
+
+          if (
+            state.blocked ||
+            state.ended ||
+            !state.looksLive ||
+            !specificRoom ||
+            (!titleMatched && !pageMatched) ||
+            isGenericLiveTitle(candidate.title)
+          ) {
+            console.log(`[${new Date().toLocaleString()}] skip candidate after open: ${candidate.url}`);
             continue;
           }
 
@@ -416,6 +463,7 @@ async function searchAndCapture(command) {
           await livePage.close().catch(() => undefined);
         }
       }
+
       return uploaded;
     } finally {
       await page.close().catch(() => undefined);
@@ -431,19 +479,22 @@ async function tick() {
     if (onlyRoomId && room.id !== onlyRoomId) return false;
     return forceNow || (room.enabled && room.publishTime === now);
   });
-  if (!dueRooms.length) console.log(`[${new Date().toLocaleString()}] no rooms due`);
+
+  if (!dueRooms.length) {
+    console.log(`[${new Date().toLocaleString()}] no rooms due`);
+  }
 
   for (const room of dueRooms) {
     const key = todayKey(room.id, room.publishTime);
     if (!forceNow && fired.has(key)) continue;
     fired.add(key);
     try {
-      console.log(`[${new Date().toLocaleString()}] capture ${room.name}`);
+      console.log(`[${new Date().toLocaleString()}] capture room=${room.name}`);
       const bytes = await captureRoom(room);
       await uploadShot(room, bytes);
-      console.log(`[${new Date().toLocaleString()}] uploaded ${room.name}`);
+      console.log(`[${new Date().toLocaleString()}] uploaded room=${room.name}`);
     } catch (error) {
-      console.error(`[${new Date().toLocaleString()}] ${room.name}: ${error.message}`);
+      console.error(`[${new Date().toLocaleString()}] room=${room.name} error=${error.message}`);
     }
   }
 }
@@ -457,7 +508,7 @@ async function commandTick() {
     try {
       const count = await searchAndCapture(command);
       await finishCommand(command.id, "done", "", count);
-      console.log(`[${new Date().toLocaleString()}] search command uploaded ${count} live screenshots`);
+      console.log(`[${new Date().toLocaleString()}] search command uploaded ${count} screenshots`);
     } catch (error) {
       await finishCommand(command.id, "failed", error.message);
       console.error(`[${new Date().toLocaleString()}] search command failed: ${error.message}`);
@@ -477,20 +528,24 @@ async function commandTick() {
   }
 
   try {
-    console.log(`[${new Date().toLocaleString()}] command capture ${room.name}`);
+    console.log(`[${new Date().toLocaleString()}] command capture room=${room.name}`);
     const bytes = await captureRoom(room);
     await uploadShot(room, bytes);
     await finishCommand(command.id, "done");
-    console.log(`[${new Date().toLocaleString()}] command uploaded ${room.name}`);
+    console.log(`[${new Date().toLocaleString()}] command uploaded room=${room.name}`);
   } catch (error) {
     await finishCommand(command.id, "failed", error.message);
-    console.error(`[${new Date().toLocaleString()}] command failed ${room.name}: ${error.message}`);
+    console.error(`[${new Date().toLocaleString()}] command failed room=${room.name}: ${error.message}`);
   }
 }
 
-console.log(`local live capture agent started: ${serverUrl}, poll=${pollMs}ms, headless=${headless}, once=${runOnce}, force=${forceNow}, cdp=${Boolean(cdpUrl)}, profile=${userDataDir || "none"}`);
+console.log(
+  `local live capture agent started: ${serverUrl}, poll=${pollMs}ms, headless=${headless}, once=${runOnce}, force=${forceNow}, cdp=${Boolean(cdpUrl)}, profile=${userDataDir || "none"}`
+);
+
 await tick().catch((error) => console.error(error.message));
 await commandTick().catch((error) => console.error(error.message));
+
 if (runOnce) {
   console.log("one-shot run finished");
 } else {

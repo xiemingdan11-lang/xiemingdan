@@ -41,6 +41,7 @@ type LiveShot = {
 type ShotGroup = { key: string; label: string; shots: LiveShot[] };
 
 const ALL_GROUP = "__all__";
+const SEARCH_CAPTURE_LIMIT = 4;
 
 const emptyRoom = (): LiveRoom => ({
   id: `room-${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 8)}`,
@@ -105,12 +106,12 @@ export default function HomePage() {
       const res = await fetch("/api/live/agent/commands", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "search-capture", keyword: term, limit: 1 })
+        body: JSON.stringify({ type: "search-capture", keyword: term, limit: SEARCH_CAPTURE_LIMIT })
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return showToast(data.error || "发送失败，请重试");
       setActiveGroup(term);
-      setLastTask(`已发送「${term}」竖版截图任务，只抓 1 个直播间。`);
+      setLastTask(`已发送「${term}」竖版截图任务，默认抓取 ${SEARCH_CAPTURE_LIMIT} 个相关直播间。`);
       showToast("任务已发送给共享电脑");
       window.setTimeout(refresh, 5000);
     } finally {
@@ -248,7 +249,7 @@ export default function HomePage() {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.18em] text-black/38">Quick Capture</div>
-                <h3 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">抓取一个直播间</h3>
+                <h3 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">抓取多个直播间</h3>
               </div>
               <div className="grid h-10 w-10 place-items-center rounded-full bg-[#64e994] text-black">
                 <Search className="h-5 w-5" />
