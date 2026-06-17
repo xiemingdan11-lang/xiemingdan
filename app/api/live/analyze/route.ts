@@ -135,7 +135,7 @@ export async function POST(request: Request) {
         Authorization: `Bearer ${apiKey.trim()}`
       },
       body: JSON.stringify({
-        model: "deepseek-chat",
+        model: "deepseek-vl",
         messages: [
           { role: "system", content: systemPrompt },
           {

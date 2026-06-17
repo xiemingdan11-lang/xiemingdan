@@ -85,6 +85,7 @@ export default function HomePage() {
   const [activeSkill, setActiveSkill] = useState<SkillKey | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState("");
+  const [analysisError, setAnalysisError] = useState("");
   const [copied, setCopied] = useState(false);
 
   const activeRoom = rooms.find((room) => room.id === activeRoomId) ?? rooms[0];
@@ -234,6 +235,7 @@ export default function HomePage() {
   const openAnalysis = (shot: LiveShot) => {
     setSelectedShot(shot);
     setAnalysisResult("");
+    setAnalysisError("");
     setCopied(false);
     setAnalyzing(false);
   };
@@ -243,6 +245,7 @@ export default function HomePage() {
     if (!apiKey.trim()) { setShowApiInput(true); showToast("请先设置 DeepSeek API Key"); return; }
     setAnalyzing(true);
     setAnalysisResult("");
+    setAnalysisError("");
     try {
       const res = await fetch("/api/live/analyze", {
         method: "POST",
@@ -250,7 +253,10 @@ export default function HomePage() {
         body: JSON.stringify({ imageUrl: selectedShot.imageUrl, skill: activeSkill, apiKey })
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || data.error) { showToast(data.error || "分析失败，请重试"); return; }
+      if (!res.ok || data.error) {
+        setAnalysisError(data.error || "分析失败，请重试");
+        return;
+      }
       setAnalysisResult(data.content || "");
     } finally {
       setAnalyzing(false);
@@ -427,6 +433,7 @@ export default function HomePage() {
           activeSkill={activeSkill}
           analyzing={analyzing}
           analysisResult={analysisResult}
+          analysisError={analysisError}
           copied={copied}
           onClose={() => setSelectedShot(null)}
           onToggleApiInput={() => setShowApiInput((v) => !v)}
@@ -449,6 +456,7 @@ function AnalysisModal({
   activeSkill,
   analyzing,
   analysisResult,
+  analysisError,
   copied,
   onClose,
   onToggleApiInput,
@@ -463,6 +471,7 @@ function AnalysisModal({
   activeSkill: SkillKey | null;
   analyzing: boolean;
   analysisResult: string;
+  analysisError: string;
   copied: boolean;
   onClose: () => void;
   onToggleApiInput: () => void;
@@ -577,6 +586,13 @@ function AnalysisModal({
               {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               {analyzing ? "分析中…" : "分析直播间"}
             </button>
+
+            {/* Error */}
+            {analysisError && (
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                <strong>错误：</strong>{analysisError}
+              </div>
+            )}
 
             {/* Result */}
             {analysisResult && (
