@@ -114,8 +114,8 @@ export async function POST(request: Request) {
     };
 
     const { imageUrl, skill } = body;
-    // 优先使用环境变量中的 API Key，其次使用前端传来的
-    const apiKey = process.env.RELAY_API_KEY || process.env.QWEN_API_KEY || process.env.DEEPSEEK_API_KEY || body.apiKey || "";
+    // 优先使用前端传来的 API Key，其次使用环境变量
+    const apiKey = body.apiKey?.trim() || process.env.RELAY_API_KEY || process.env.QWEN_API_KEY || process.env.DEEPSEEK_API_KEY || "";
 
     if (!apiKey.trim()) {
       return NextResponse.json({ error: "请提供 DeepSeek API Key（在界面设置或 Vercel 环境变量 DEEPSEEK_API_KEY）" }, { status: 400 });
