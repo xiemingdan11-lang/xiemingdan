@@ -42,6 +42,8 @@ type LiveShot = {
   capturedAt: string;
   message?: string;
   keyword?: string;
+  analysisResult?: string;
+  generatedImgUrl?: string;
 };
 
 type ShotGroup = { key: string; label: string; shots: LiveShot[] };
@@ -68,6 +70,8 @@ type ScheduledTask = {
 };
 const LS_API_BASE = "relay_api_base";
 const DEFAULT_API_BASE = "https://ai.comfly.org";
+const LS_IMG_BASE = "img_api_base";
+const DEFAULT_IMG_BASE = "";
 
 // ── AI 分析提示词 ──────────────────────────────────────────────────────────────
 
@@ -183,6 +187,7 @@ export default function HomePage() {
   const [selectedShot, setSelectedShot] = useState<LiveShot | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [apiBaseUrl, setApiBaseUrl] = useState(DEFAULT_API_BASE);
+  const [imgBaseUrl, setImgBaseUrl] = useState(DEFAULT_IMG_BASE);
   const [showApiInput, setShowApiInput] = useState(false);
   const [activeSkill, setActiveSkill] = useState<SkillKey | null>(null);
   const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(new Set());
@@ -203,6 +208,7 @@ export default function HomePage() {
     if (typeof window !== "undefined") {
       setApiKey(localStorage.getItem(LS_API_KEY) || "");
       setApiBaseUrl(localStorage.getItem(LS_API_BASE) || DEFAULT_API_BASE);
+      setImgBaseUrl(localStorage.getItem(LS_IMG_BASE) || DEFAULT_IMG_BASE);
       fetch("/api/live/scheduled-tasks").then((r) => r.json()).then((d) => { if (d.tasks) setScheduledTasks(d.tasks); });
     }
   }, []);
@@ -341,7 +347,7 @@ export default function HomePage() {
 
   const openAnalysis = (shot: LiveShot) => {
     setSelectedShot(shot);
-    setAnalysisResult("");
+    setAnalysisResult(shot.analysisResult || "");
     setAnalysisError("");
     setCopied(false);
     setAnalyzing(false);
@@ -397,7 +403,21 @@ export default function HomePage() {
         return;
       }
       const aiData = await aiRes.json() as { choices?: Array<{ message?: { content?: string } }> };
-      setAnalysisResult(aiData.choices?.[0]?.message?.content || "");
+      const result = aiData.choices?.[0]?.message?.content || "";
+      setAnalysisResult(result);
+      // Persist to server (fire-and-forget)
+      if (result && selectedShot) {
+        fetch(`/api/live/shots/${selectedShot.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ analysisResult: result })
+        }).then(r => r.json()).then((data: { shot?: LiveShot }) => {
+          if (data.shot) {
+            setShots(prev => prev.map(s => s.id === data.shot!.id ? data.shot! : s));
+            setSelectedShot(data.shot);
+          }
+        }).catch(() => {/* ignore */});
+      }
     } catch (err: unknown) {
       setAnalysisError(err instanceof Error ? err.message : "未知错误");
     } finally {
@@ -418,6 +438,14 @@ export default function HomePage() {
     if (typeof window !== "undefined") {
       if (value && value !== DEFAULT_API_BASE) localStorage.setItem(LS_API_BASE, value);
       else localStorage.removeItem(LS_API_BASE);
+    }
+  };
+
+  const saveImgBaseUrl = (value: string) => {
+    setImgBaseUrl(value);
+    if (typeof window !== "undefined") {
+      if (value) localStorage.setItem(LS_IMG_BASE, value);
+      else localStorage.removeItem(LS_IMG_BASE);
     }
   };
 
@@ -625,6 +653,7 @@ export default function HomePage() {
           shot={selectedShot}
           apiKey={apiKey}
           apiBaseUrl={apiBaseUrl}
+          imgBaseUrl={imgBaseUrl}
           showApiInput={showApiInput}
           activeSkill={activeSkill}
           activeFilters={activeFilters}
@@ -636,10 +665,15 @@ export default function HomePage() {
           onToggleApiInput={() => setShowApiInput((v) => !v)}
           onSaveApiKey={saveApiKey}
           onSaveApiBaseUrl={saveApiBaseUrl}
+          onSaveImgBaseUrl={saveImgBaseUrl}
           onToggleSkill={toggleSkill}
           onToggleFilter={toggleFilter}
           onAnalyze={runAnalysis}
           onCopy={copyResult}
+          onUpdateShot={(updated) => {
+            setShots(prev => prev.map(s => s.id === updated.id ? updated : s));
+            setSelectedShot(updated);
+          }}
         />
       )}
     </main>
@@ -652,6 +686,7 @@ function AnalysisModal({
   shot,
   apiKey,
   apiBaseUrl,
+  imgBaseUrl,
   showApiInput,
   activeSkill,
   activeFilters,
@@ -663,14 +698,17 @@ function AnalysisModal({
   onToggleApiInput,
   onSaveApiKey,
   onSaveApiBaseUrl,
+  onSaveImgBaseUrl,
   onToggleSkill,
   onToggleFilter,
   onAnalyze,
-  onCopy
+  onCopy,
+  onUpdateShot
 }: {
   shot: LiveShot;
   apiKey: string;
   apiBaseUrl: string;
+  imgBaseUrl: string;
   showApiInput: boolean;
   activeSkill: SkillKey | null;
   activeFilters: Set<FilterKey>;
@@ -682,48 +720,112 @@ function AnalysisModal({
   onToggleApiInput: () => void;
   onSaveApiKey: (v: string) => void;
   onSaveApiBaseUrl: (v: string) => void;
+  onSaveImgBaseUrl: (v: string) => void;
   onToggleSkill: (k: SkillKey) => void;
   onToggleFilter: (k: FilterKey) => void;
   onAnalyze: () => void;
   onCopy: () => void;
+  onUpdateShot: (shot: LiveShot) => void;
 }) {
   const apiInputRef = useRef<HTMLInputElement>(null);
+  const [generatingImg, setGeneratingImg] = useState(false);
+  const [generatedImg, setGeneratedImg]   = useState<string | null>(shot.generatedImgUrl || null);
+  const [imgError, setImgError]           = useState("");
+  const [imgApiKey, setImgApiKey]         = useState<string>(() =>
+    typeof window !== "undefined" ? (localStorage.getItem("imgApiKey") || "") : ""
+  );
+
+  function saveImgApiKey(v: string) {
+    setImgApiKey(v);
+    localStorage.setItem("imgApiKey", v);
+  }
 
   useEffect(() => {
     if (showApiInput) apiInputRef.current?.focus();
   }, [showApiInput]);
+
+  // Reset generated image when a NEW analysis is run (not on initial load)
+  const prevAnalyzing = useRef(false);
+  useEffect(() => {
+    if (prevAnalyzing.current && !analyzing) {
+      // Just finished a fresh analysis run — reset generated image
+      setGeneratedImg(null);
+      setImgError("");
+    }
+    prevAnalyzing.current = analyzing;
+  }, [analyzing]);
+
+  async function generateImage() {
+    if (!analysisResult) return;
+    // Extract prompt between ``` ``` or use full result
+    const codeMatch = analysisResult.match(/```[\s\S]*?\n([\s\S]+?)\n```/);
+    const rawPrompt = codeMatch ? codeMatch[1].trim() : analysisResult.slice(0, 1000);
+    // Build negative instructions from active filters
+    const filterNeg: Partial<Record<FilterKey, string>> = {
+      no_person:  "画面中不要出现任何人物、真人、人脸、肢体，no people, no humans, no faces",
+      no_sticker: "不要贴片、字幕、价格标签、促销标签，no sticker, no price tag",
+      no_product: "不要产品特写，no product",
+      bg_only:    "只要背景环境，不要人物和产品，background only, no people, no products",
+    };
+    const filterParts = [...activeFilters].map(k => filterNeg[k]).filter(Boolean).join("，");
+    const prompt = rawPrompt
+      + "，画面干净简洁，不要任何文字、logo、水印、字幕或文案覆盖，no text overlay, no watermark, no captions"
+      + (filterParts ? "，" + filterParts : "");
+    const base = (imgBaseUrl || apiBaseUrl || "https://ai.comfly.org").replace(/\/$/, "");
+    const key  = (imgApiKey || apiKey).trim();
+    if (!key) { setImgError("请先在设置里填写 API Key"); return; }
+    setGeneratingImg(true); setGeneratedImg(null); setImgError("");
+    try {
+      const res = await fetch(`${base}/v1/images/generations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+        body: JSON.stringify({ model: "nano-banana", prompt, n: 1, size: "1024x1792" })
+      });
+      const data = await res.json() as { data?: { url?: string }[]; error?: { message?: string } };
+      if (!res.ok || data.error) throw new Error(data.error?.message || `生成失败 ${res.status}`);
+      const url = data.data?.[0]?.url;
+      if (!url) throw new Error("未返回图片地址");
+      setGeneratedImg(url);
+      // Persist to server (download + save locally)
+      fetch(`/api/live/shots/${shot.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ generatedImgUrl: url })
+      }).then(r => r.json()).then((d: { shot?: LiveShot }) => {
+        if (d.shot?.generatedImgUrl) {
+          setGeneratedImg(d.shot.generatedImgUrl);
+          onUpdateShot(d.shot);
+        }
+      }).catch(() => {/* ignore — keep external URL */});
+    } catch (e: unknown) {
+      setImgError(e instanceof Error ? e.message : "未知错误");
+    } finally {
+      setGeneratingImg(false);
+    }
+  }
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="flex h-[92vh] w-full max-w-6xl overflow-hidden rounded-[32px] bg-white shadow-[0_40px_120px_rgba(0,0,0,0.35)]">
-        {/* Left: image */}
-        <div className="relative flex w-[46%] shrink-0 items-center justify-center bg-[#111111]">
-          <div className="h-full w-full">
-            <img
-              src={shot.imageUrl}
-              alt={shot.roomName}
-              className="h-full w-full object-contain"
-            />
-          </div>
+      <div className={`flex h-[92vh] w-full overflow-hidden rounded-[32px] bg-white shadow-[0_40px_120px_rgba(0,0,0,0.35)] transition-[max-width] duration-300 ${generatingImg || generatedImg ? "max-w-[1280px]" : "max-w-[860px]"}`}>
+
+        {/* ── Panel 1: Original screenshot ── */}
+        <div className="relative flex w-[340px] shrink-0 items-center justify-center bg-[#111111]">
+          <img src={shot.imageUrl} alt={shot.roomName} className="h-full w-full object-contain" />
           <div className="absolute left-3 top-3 rounded-full bg-[#64e994] px-3 py-1 text-xs font-semibold text-black">
             {inferKeyword(shot)}
           </div>
-          <a
-            href={shot.imageUrl}
-            target="_blank"
-            rel="noreferrer"
+          <a href={shot.imageUrl} target="_blank" rel="noreferrer"
             className="absolute bottom-3 right-3 grid h-9 w-9 place-items-center rounded-full bg-white/90 text-black shadow transition hover:bg-white"
-            title="在新标签页打开原图"
-          >
+            title="在新标签页打开原图">
             <ExternalLink className="h-4 w-4" />
           </a>
         </div>
 
-        {/* Right: analysis panel */}
-        <div className="flex flex-1 flex-col overflow-hidden">
+        {/* ── Panel 2: Analysis ── */}
+        <div className="flex w-[520px] shrink-0 flex-col overflow-hidden border-l border-black/8">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-black/8 px-6 py-4">
             <div>
@@ -731,14 +833,12 @@ function AnalysisModal({
               <h2 className="mt-0.5 truncate text-lg font-semibold tracking-[-0.04em]">{shotDisplayName(shot)}</h2>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={onToggleApiInput}
-                title="设置 API Key"
-                className={`grid h-9 w-9 place-items-center rounded-full border transition ${showApiInput ? "border-[#111111] bg-[#111111] text-white" : "border-black/10 bg-[#f4f4f1] text-black hover:border-black/20"}`}
-              >
+              <button onClick={onToggleApiInput} title="设置 API Key"
+                className={`grid h-9 w-9 place-items-center rounded-full border transition ${showApiInput ? "border-[#111111] bg-[#111111] text-white" : "border-black/10 bg-[#f4f4f1] text-black hover:border-black/20"}`}>
                 <Settings className="h-4 w-4" />
               </button>
-              <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-full border border-black/10 bg-[#f4f4f1] text-black transition hover:bg-[#111111] hover:text-white">
+              <button onClick={onClose}
+                className="grid h-9 w-9 place-items-center rounded-full border border-black/10 bg-[#f4f4f1] text-black transition hover:bg-[#111111] hover:text-white">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -750,24 +850,27 @@ function AnalysisModal({
               <div className="rounded-2xl border border-black/10 bg-[#f7f7f5] p-4 flex flex-col gap-3">
                 <div>
                   <div className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-black/42">API Key</div>
-                  <input
-                    ref={apiInputRef}
-                    type="password"
-                    value={apiKey}
-                    onChange={(e) => onSaveApiKey(e.target.value)}
+                  <input ref={apiInputRef} type="password" value={apiKey} onChange={(e) => onSaveApiKey(e.target.value)}
                     placeholder="sk-..."
-                    className="h-10 w-full rounded-full border border-black/10 bg-white px-4 text-sm outline-none transition focus:border-black/30"
-                  />
+                    className="h-10 w-full rounded-full border border-black/10 bg-white px-4 text-sm outline-none transition focus:border-black/30" />
                 </div>
                 <div>
                   <div className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-black/42">API Base URL</div>
-                  <input
-                    type="text"
-                    value={apiBaseUrl}
-                    onChange={(e) => onSaveApiBaseUrl(e.target.value)}
+                  <input type="text" value={apiBaseUrl} onChange={(e) => onSaveApiBaseUrl(e.target.value)}
                     placeholder="https://ai.comfly.org"
-                    className="h-10 w-full rounded-full border border-black/10 bg-white px-4 text-sm outline-none transition focus:border-black/30"
-                  />
+                    className="h-10 w-full rounded-full border border-black/10 bg-white px-4 text-sm outline-none transition focus:border-black/30" />
+                </div>
+                <div>
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-black/42">图片生成 API Key（留空则复用上方 Key）</div>
+                  <input type="password" value={imgApiKey} onChange={(e) => saveImgApiKey(e.target.value)}
+                    placeholder="留空 = 复用上方 Key"
+                    className="h-10 w-full rounded-full border border-black/10 bg-white px-4 text-sm outline-none transition focus:border-black/30" />
+                </div>
+                <div>
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-black/42">图片生成 Base URL（留空则复用上方 Base URL）</div>
+                  <input type="text" value={imgBaseUrl} onChange={(e) => onSaveImgBaseUrl(e.target.value)}
+                    placeholder="留空 = 使用上方 Base URL"
+                    className="h-10 w-full rounded-full border border-black/10 bg-white px-4 text-sm outline-none transition focus:border-black/30" />
                 </div>
                 <p className="text-xs text-black/38">Key 和 Base URL 保存于本地浏览器，AI 请求直接从你的浏览器发出。</p>
               </div>
@@ -778,19 +881,14 @@ function AnalysisModal({
               <div className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-black/42">分析模式（可选）</div>
               <div className="flex flex-wrap gap-2">
                 {(Object.entries(SKILLS) as [SkillKey, { label: string; desc: string }][]).map(([key, skill]) => (
-                  <button
-                    key={key}
-                    onClick={() => onToggleSkill(key)}
-                    className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition ${activeSkill === key ? "border-[#111111] bg-[#111111] text-white" : "border-black/10 bg-[#f4f4f1] text-black hover:border-black/20"}`}
-                  >
+                  <button key={key} onClick={() => onToggleSkill(key)}
+                    className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition ${activeSkill === key ? "border-[#111111] bg-[#111111] text-white" : "border-black/10 bg-[#f4f4f1] text-black hover:border-black/20"}`}>
                     {activeSkill === key && <Check className="h-3.5 w-3.5" />}
                     <span>{skill.label}</span>
                     <span className={`text-xs ${activeSkill === key ? "text-white/60" : "text-black/38"}`}>{skill.desc}</span>
                   </button>
                 ))}
-                {activeSkill === null && (
-                  <span className="flex items-center px-1 text-xs text-black/38">默认：提取生图关键词</span>
-                )}
+                {activeSkill === null && <span className="flex items-center px-1 text-xs text-black/38">默认：提取生图关键词</span>}
               </div>
             </div>
 
@@ -801,11 +899,8 @@ function AnalysisModal({
                 {(Object.entries(FILTERS) as [FilterKey, { label: string; instruction: string }][]).map(([key, filter]) => {
                   const active = activeFilters.has(key);
                   return (
-                    <button
-                      key={key}
-                      onClick={() => onToggleFilter(key)}
-                      className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition ${active ? "border-[#e05a2b] bg-[#e05a2b] text-white" : "border-black/10 bg-[#f4f4f1] text-black hover:border-black/20"}`}
-                    >
+                    <button key={key} onClick={() => onToggleFilter(key)}
+                      className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition ${active ? "border-[#e05a2b] bg-[#e05a2b] text-white" : "border-black/10 bg-[#f4f4f1] text-black hover:border-black/20"}`}>
                       {active && <Check className="h-3 w-3" />}
                       {filter.label}
                     </button>
@@ -815,11 +910,8 @@ function AnalysisModal({
             </div>
 
             {/* Analyze button */}
-            <button
-              onClick={onAnalyze}
-              disabled={analyzing}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#111111] text-sm font-semibold text-white transition hover:bg-[#222] disabled:opacity-60"
-            >
+            <button onClick={onAnalyze} disabled={analyzing}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#111111] text-sm font-semibold text-white transition hover:bg-[#222] disabled:opacity-60">
               {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               {analyzing ? "分析中…" : "分析直播间"}
             </button>
@@ -833,13 +925,11 @@ function AnalysisModal({
 
             {/* Result */}
             {analysisResult && (
-              <div className="flex flex-1 flex-col gap-2">
+              <div className="flex flex-1 flex-col gap-3">
                 <div className="flex items-center justify-between">
                   <div className="text-xs font-semibold uppercase tracking-[0.12em] text-black/42">分析结果</div>
-                  <button
-                    onClick={onCopy}
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition ${copied ? "border-[#64e994] bg-[#64e994] text-black" : "border-black/10 bg-white text-black hover:border-black/20"}`}
-                  >
+                  <button onClick={onCopy}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition ${copied ? "border-[#64e994] bg-[#64e994] text-black" : "border-black/10 bg-white text-black hover:border-black/20"}`}>
                     {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                     {copied ? "已复制" : "复制"}
                   </button>
@@ -847,6 +937,17 @@ function AnalysisModal({
                 <div className="flex-1 overflow-y-auto rounded-2xl border border-black/8 bg-[#f7f7f5] p-4 text-sm leading-relaxed text-black/80 whitespace-pre-wrap">
                   {analysisResult}
                 </div>
+
+                {/* Generate button */}
+                <button onClick={generateImage} disabled={generatingImg}
+                  className="flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-full bg-[#6c47ff] text-sm font-semibold text-white transition hover:bg-[#5538e0] disabled:opacity-60">
+                  {generatingImg ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
+                  {generatingImg ? "生成中…" : "根据提示词生成图片"}
+                </button>
+
+                {imgError && (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{imgError}</div>
+                )}
               </div>
             )}
 
@@ -859,6 +960,31 @@ function AnalysisModal({
             )}
           </div>
         </div>
+
+        {/* ── Panel 3: Generated image (slides in) ── */}
+        {(generatingImg || generatedImg) && (
+          <div className="relative flex flex-1 shrink-0 flex-col items-center justify-center border-l border-black/8 bg-[#111111]">
+            {generatingImg && !generatedImg && (
+              <div className="flex flex-col items-center gap-3 text-white/50">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <div className="text-sm">生成中…</div>
+              </div>
+            )}
+            {generatedImg && (
+              <>
+                <img src={generatedImg} alt="AI生成图" className="h-full w-full object-contain" />
+                <div className="absolute left-3 top-3 rounded-full bg-[#6c47ff] px-3 py-1 text-xs font-semibold text-white">
+                  AI 生成
+                </div>
+                <a href={generatedImg} target="_blank" rel="noreferrer"
+                  className="absolute bottom-3 right-3 grid h-9 w-9 place-items-center rounded-full bg-white/90 text-black shadow transition hover:bg-white"
+                  title="在新标签页打开生成图">
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -886,16 +1012,11 @@ function ShotCard({ shot, index, onDelete, onAnalyze }: { shot: LiveShot; index:
             <img src={shot.imageUrl} alt={shot.roomName} loading="lazy" className="h-full w-full object-cover" />
           </div>
         </button>
-        {/* Hover overlay */}
+        {/* Hover overlay - dim only, no button */}
         <div
           onClick={onAnalyze}
-          className="pointer-events-none absolute inset-0 flex cursor-pointer items-center justify-center bg-black/0 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:bg-black/35 group-hover:opacity-100"
-        >
-          <div className="flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-black shadow-lg">
-            <Sparkles className="h-4 w-4" />
-            分析直播间
-          </div>
-        </div>
+          className="pointer-events-none absolute inset-0 cursor-pointer bg-black/0 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:bg-black/20 group-hover:opacity-100"
+        />
         <div className="absolute left-3 top-3 rounded-full bg-[#64e994] px-3 py-1 text-xs font-semibold text-black">
           {inferKeyword(shot)}
         </div>
@@ -916,9 +1037,10 @@ function ShotCard({ shot, index, onDelete, onAnalyze }: { shot: LiveShot; index:
             </div>
           )}
         </div>
-        <a href={shot.imageUrl} target="_blank" rel="noreferrer" className={`grid h-10 w-10 shrink-0 place-items-center rounded-full transition ${dark ? "bg-white text-black hover:bg-[#64e994]" : "bg-[#111111] text-white hover:bg-[#64e994] hover:text-black"}`}>
-          <ExternalLink className="h-4 w-4" />
-        </a>
+        <button onClick={onAnalyze} className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#111111] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#64e994] hover:text-black">
+          <Sparkles className="h-3.5 w-3.5" />
+          分析
+        </button>
       </div>
     </article>
   );
