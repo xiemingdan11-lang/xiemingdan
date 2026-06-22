@@ -876,7 +876,7 @@ function Stat({ label, value }: { label: string; value: number }) {
 }
 
 function ShotCard({ shot, index, onDelete, onAnalyze }: { shot: LiveShot; index: number; onDelete: () => void; onAnalyze: () => void }) {
-  const dark = index % 5 === 0;
+  const dark = false;
   return (
     <article className={`group overflow-hidden rounded-[30px] p-3 shadow-[0_22px_60px_rgba(0,0,0,0.12)] transition duration-200 hover:-translate-y-1 ${dark ? "bg-[#111111] text-white" : "bg-white text-black"}`}>
       <div className="relative overflow-hidden rounded-[24px] bg-[#dcdcd9]">

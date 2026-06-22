@@ -28,4 +28,9 @@ npm run build
 
 echo "=== 重启应用 ==="
 pm2 restart live-workbench 2>/dev/null || \
-  pm2 start npm --name live-workbenc
+  pm2 start npm --name live-workbench -- start -- -p 3000
+
+pm2 save
+
+echo ""
+echo "✅ 部署完成，访问 http://$(curl -s ifconfig.me) 即可（无需翻墙）"

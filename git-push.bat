@@ -1,6 +1,6 @@
 @echo off
 cd /d "%~dp0"
 git add -A
-git commit -m "fix: remove strict keyword filter in search capture; add Tencent Cloud deploy scripts"
+git commit -m "fix: server deploy permission + api route cleanup"
 git push
 pause
